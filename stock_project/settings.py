@@ -25,7 +25,7 @@ SECRET_KEY = 'y!ldh327$fs!t*t92tu_^ov_9p%s0(+(1&zxww!vodrrl*vuk('
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['stock.hidento.com']
 
 
 # Application definition
