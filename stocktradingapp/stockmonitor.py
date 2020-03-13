@@ -3,7 +3,6 @@ import threading
 from time import sleep
 
 import requests
-from alpha_vantage.timeseries import TimeSeries
 
 from stock_project import settings
 
@@ -24,7 +23,6 @@ def runStockMonitor():
 
 def checkStockData(current):
     key = settings.ALPHA_VANTAGE_API_KEY
-    ts = TimeSeries(key)
     #aapl, meta = ts.get_daily(symbol=['NSE:ONGC', 'NSE:VEDL'])
     # aapl, meta = ts.get_batch_stock_quotes(symbols=['NSE:ONGC', 'NSE:VEDL'])
     # logging.debug(aapl['2020-03-09'])
