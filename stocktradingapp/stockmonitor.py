@@ -15,13 +15,11 @@ def startStockMonitorThread():
 
 
 def runStockMonitor():
-    current = 1
     while True:
         pass
         logging.debug('thread started and running')
-        checkStockData(current)
+        checkStockData()
         sleep(1)
-        current = 2 if current==1 else 1
 
 
 def checkStockData(current):

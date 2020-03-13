@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/3.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.0/ref/settings/
 """
-
+import json
 import os
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -20,7 +20,31 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'y!ldh327$fs!t*t92tu_^ov_9p%s0(+(1&zxww!vodrrl*vuk('
+try:
+    with open('/etc/stock_project_config.json') as config_file:
+        config = json.load(config_file)
+
+        SECRET_KEY = config['SECRET_KEY']
+
+        EMAIL_HOST = config['EMAIL_HOST']
+        EMAIL_PORT = config['EMAIL_PORT']
+        EMAIL_HOST_USER = config['EMAIL_HOST_USER']
+        EMAIL_HOST_PASSWORD = config['EMAIL_HOST_PASSWORD']
+        EMAIL_USE_TLS = config['EMAIL_USE_TLS']
+        DEFAULT_FROM_EMAIL = config['DEFAULT_FROM_EMAIL']
+
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql_psycopg2',
+                'NAME': config['DB_NAME'],
+                'USER': config['DB_USER'],
+                'PASSWORD': config['DB_PASSWORD'],
+                'HOST': config['DB_HOST'],
+                'PORT': config['DB_PORT'],
+            }
+        }
+except FileNotFoundError as error:
+    pass
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -75,13 +99,6 @@ LOG_FILE_PATH = '/home/ubuntu/logs/stocktradingapp_log.log'
 
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
-}
 
 
 # Password validation
