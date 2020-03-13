@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'stocktradingapp.apps.StocktradingappConfig',
 ]
 
 MIDDLEWARE = [
@@ -68,6 +69,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'stock_project.wsgi.application'
+
+LOG_FILE_PATH = '/home/ubuntu/logs/stocktradingapp_log.log'
 
 
 # Database
@@ -118,3 +121,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+LOGIN_REDIRECT_URL ='index'
+LOGOUT_REDIRECT_URL = 'index'
+
+ALPHA_VANTAGE_URL = 'https://www.alphavantage.co/query'
+
+try:
+    from .settings_local import *
+except ImportError as e:
+    pass

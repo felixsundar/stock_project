@@ -1,0 +1,14 @@
+logged in as : {{request.user.username}}
+<br><br><br>
+{% if user_zerodha is None %}
+<a href="{% url 'authZerodha' %}">Link Zerodha</a>
+{% else %}
+<b>zerodha account linked:</b>
+user id : {{user_zerodha.user_id}}
+user name : {{user_zerodha.user_name}}
+user shortname : {{user_zerodha.user_shortname}}
+email : {{user_zerodha.email}}
+{% endif %}
+
+<br><br><br><br><br>
+<a href="{% url 'logout' %}">Logout</a>
