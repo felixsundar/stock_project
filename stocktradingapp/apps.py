@@ -5,6 +5,5 @@ class StocktradingappConfig(AppConfig):
     name = 'stocktradingapp'
 
     def ready(self):
-        pass
-        #from stocktradingapp import stockmonitor
-        #stockmonitor.startStockMonitorThread()
+        from stocktradingapp import stockmonitor
+        stockmonitor.startStockMonitorThread()
