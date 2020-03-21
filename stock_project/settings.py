@@ -126,10 +126,8 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'Asia/Kolkata'
-START_HOUR = 9
-START_MINUTE = 15
-END_HOUR = 15
-END_MINUTE = 30
+
+PRIMARY_USERNAME = 'felixsundar'
 
 USE_I18N = True
 
@@ -149,8 +147,6 @@ MEDIA_URL = '/media/'
 
 LOGIN_REDIRECT_URL ='index'
 LOGOUT_REDIRECT_URL = 'index'
-
-ALPHA_VANTAGE_URL = 'https://www.alphavantage.co/query'
 
 try:
     from .settings_local import *

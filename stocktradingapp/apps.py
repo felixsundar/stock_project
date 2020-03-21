@@ -1,3 +1,5 @@
+import threading
+
 from django.apps import AppConfig
 
 
@@ -6,4 +8,5 @@ class StocktradingappConfig(AppConfig):
 
     def ready(self):
         from stocktradingapp import stockmonitor
-        stockmonitor.startStockMonitorThread()
+        stockMonitorThread = threading.Thread(target=stockmonitor.runStockMonitor, daemon=True, name='stockMonitor_thread')
+        stockMonitorThread.start()

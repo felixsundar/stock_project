@@ -1,8 +1,7 @@
 logged in as : {{request.user.username}}
 <br><br><br>
-{% if user_zerodha is None %}
 <a href="{% url 'authZerodha' %}">Link Zerodha</a>
-{% else %}
+{% if user_zerodha %}
 <b>zerodha account linked:</b>
 user id : {{user_zerodha.user_id}}
 user name : {{user_zerodha.user_name}}
