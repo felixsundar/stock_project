@@ -19,3 +19,10 @@ class ZerodhaAccount(models.Model):
     exchanges = JSONField(null=True, blank=True)
     products = JSONField(null=True, blank=True)
     order_types = JSONField(null=True, blank=True)
+
+class Stock(models.Model):
+    stock_id = models.AutoField(primary_key=True)
+    instrument_token = models.BigIntegerField(unique=True)
+    trading_symbol = models.CharField(max_length=20, unique=True)
+    stock_name = models.CharField(max_length=100, unique=True)
+    active = models.BooleanField()
