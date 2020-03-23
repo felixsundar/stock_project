@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 
 from django.contrib.auth.models import User
 from kiteconnect import KiteConnect
@@ -12,6 +13,7 @@ current_positions = []
 pending_orders = []
 fund_available = 0.0
 token_symbol_map = {}
+price_windows = {}
 
 def analyzeTicks(tick_queue):
     kite = createKiteConnect()
@@ -19,10 +21,11 @@ def analyzeTicks(tick_queue):
         return
     setupTokenSymbolMap()
     while True:
-         tick = tick_queue.get(True)
-         print(tick)
-         for instrument in tick:
-             print(token_symbol_map[instrument['instrument_token']])
+        tick = tick_queue.get(True)
+        for instrument in tick:
+            price_window = price_windows[instrument['instrument_token']]
+            dump = price_window.popleft()
+            price_window.append(instrument['last_price'])
 
 
 def createKiteConnect():
@@ -38,3 +41,4 @@ def setupTokenSymbolMap():
     stocks = Stock.objects.filter(active=True)
     for stock in stocks:
         token_symbol_map[stock.instrument_token] = stock.trading_symbol
+        price_windows[stock.instrument_token] = deque(iterable=[0 for i in range(10)], maxlen=10)
