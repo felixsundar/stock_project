@@ -16,7 +16,7 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 def runStockMonitor():
     send_mail(subject='Server restarted', message='server restarted successfully at ' + str(now()), from_email=settings.DEFAULT_FROM_EMAIL,
-              recipient_list=['felixsundar07@gmail.com'], fail_silently=True)
+              recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
     kws = createWebSocketTicker()
     if kws:
         tick_queue = Queue(maxsize=5)
