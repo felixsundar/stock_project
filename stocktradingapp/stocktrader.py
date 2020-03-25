@@ -26,7 +26,28 @@ def analyzeTicks(tick_queue):
             price_window = price_windows[instrument['instrument_token']]
             dump = price_window.popleft()
             price_window.append(instrument['last_price'])
+            logging.debug(price_window)
+            signal = checkForEntry(list(price_window))
+            if signal != 0:
+                # sendEntrySignal(instrument['instrument_token'], signal)
+                logging.debug('\n\n\n\n\nsignal received - {}\n\n\n\n\n'.format(signal))
 
+def checkForEntry(price_list):
+    for i in range(5,10):
+        if price_list[i] <= price_list[i-1]:
+            break
+    else:
+        return 1 #long entry signal
+    for i in range(5,10):
+        if price_list[i] >= price_list[i-1]:
+            break
+    else:
+        return 2 #short entry signal
+    return 0
+    # pointfivepercent = 45
+    # latest_price = price_list[9]
+    # for i in range(4,9):
+    #     if latest_price - price_list[i] >=
 
 def createKiteConnect():
     user = User.objects.get_by_natural_key(settings.PRIMARY_USERNAME)
