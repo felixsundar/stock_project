@@ -15,8 +15,12 @@ from stocktradingapp.models import Stock
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 def runStockMonitor():
-    send_mail(subject='Server restarted', message='server restarted successfully at ' + str(now()), from_email=settings.DEFAULT_FROM_EMAIL,
+    try:
+        x=send_mail(subject='Server restarted', message='server restarted successfully at ' + str(now()), from_email=settings.DEFAULT_FROM_EMAIL,
               recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
+        logging.debug('\n\n\n\nsent email - {}\n\n\n\n'.format(x))
+    except Exception as e:
+        logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
     kws = createWebSocketTicker()
     if kws:
         tick_queue = Queue(maxsize=5)
