@@ -16,9 +16,9 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 def runStockMonitor():
     try:
+        logging.debug('\n\ncredentials for email: \n{}\n{}'.format(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD))
         x=send_mail(subject='Server restarted', message='server restarted successfully at ' + str(now()), from_email=settings.DEFAULT_FROM_EMAIL,
               recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
-        logging.debug('\n\n\n\nsent email - {}\n\n\n\n'.format(x))
     except Exception as e:
         logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
     kws = createWebSocketTicker()
