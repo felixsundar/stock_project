@@ -60,3 +60,6 @@ def setupTokenSymbolMap():
     for stock in stocks:
         token_symbol_map[stock.instrument_token] = stock.trading_symbol
         trigger_prices[stock.instrument_token] = 0.0 # trigger price
+
+def sendSignal(a, b):
+    pass

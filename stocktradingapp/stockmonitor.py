@@ -4,6 +4,8 @@ import threading
 from queue import Queue
 
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.utils.timezone import now
 from kiteconnect import KiteTicker
 
 from stock_project import settings
@@ -13,6 +15,8 @@ from stocktradingapp.models import Stock
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 def runStockMonitor():
+    send_mail(subject='Server restarted', message='server restarted successfully at ' + str(now()), from_email=settings.DEFAULT_FROM_EMAIL,
+              recipient_list=['felixsundar07@gmail.com'], fail_silently=True)
     kws = createWebSocketTicker()
     if kws:
         tick_queue = Queue(maxsize=5)
