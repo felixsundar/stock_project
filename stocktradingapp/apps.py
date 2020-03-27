@@ -9,4 +9,4 @@ class StocktradingappConfig(AppConfig):
     def ready(self):
         from stocktradingapp import stockmonitor
         stockMonitorThread = threading.Thread(target=stockmonitor.runStockMonitor, daemon=True, name='stockMonitor_thread')
-        stockMonitorThread.start()
+        #stockMonitorThread.start()

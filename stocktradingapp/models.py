@@ -25,4 +25,6 @@ class Stock(models.Model):
     instrument_token = models.BigIntegerField(unique=True)
     trading_symbol = models.CharField(max_length=20, unique=True)
     stock_name = models.CharField(max_length=100, unique=True)
+    mis_margin = models.FloatField()
+    co_margin = models.FloatField()
     active = models.BooleanField()
