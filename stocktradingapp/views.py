@@ -23,15 +23,17 @@ def index(request):
 
 @login_required
 def authZerodha(request):
-    kite = KiteConnect(settings.KITE_API_KEY)
+    user_kite_app = request.user.user_kite_app.first()
+    kite = KiteConnect(user_kite_app.api_key)
     return HttpResponseRedirect(kite.login_url())
 
 @login_required
 def authRedirect(request):
     logging.debug('get query params - {}'.format(request.GET))
     request_token = request.GET['request_token']
-    kite = KiteConnect(settings.KITE_API_KEY)
-    zerodha_user_data = kite.generate_session(request_token=request_token, api_secret=settings.KITE_API_SECRET)
+    user_kite_app = request.user.user_kite_app.first()
+    kite = KiteConnect(user_kite_app.api_key)
+    zerodha_user_data = kite.generate_session(request_token=request_token, api_secret=user_kite_app.api_secret)
     user_zerodha = request.user.user_zerodha.first()
     if user_zerodha is None:
         user_zerodha = ZerodhaAccount(hstock_user=request.user)

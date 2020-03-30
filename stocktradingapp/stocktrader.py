@@ -23,6 +23,7 @@ token_symbols = {} # for each token
 token_trigger_prices = {} # for each token
 token_mis_margins = {} # for each token
 token_co_margins = {} # for each token
+order_variety = 'co'
 
 def analyzeTicks(tick_queue):
     if not setupTradingThreads():
@@ -46,7 +47,7 @@ def checkEntryTrigger(instrument_token, current_price):
     trigger_price = token_trigger_prices[instrument_token]
     if current_price < trigger_price:  # entry trigger breached
         token_trigger_prices[instrument_token] = 0.995 * current_price
-        sendSignal(1, instrument_token)
+        sendSignal(1, instrument_token, current_price)
     else:  # update entry trigger
         token_trigger_prices[instrument_token] = max(trigger_price, 0.995 * current_price)
 
@@ -67,11 +68,8 @@ def setupTradingThreads():
         user_zerodha = user.user_zerodha.first()
         if user_zerodha is None:
             continue
-        kite = KiteConnect(settings.KITE_API_KEY)
+        kite = KiteConnect(user_zerodha.api_key)
         kite.set_access_token(user_zerodha.access_token)
-        margin = kite.margins()
-        fund_available = margin['data']['equity']['available']['cash']
-        funds_available[user_zerodha.user_id] = fund_available
         signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=5)
         trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id, kite,),
                                           name=user_zerodha.user_id+'_trader')
@@ -89,27 +87,57 @@ def setupTokenInfoMap():
 def processMessage(tick):
     pass
 
-def sendSignal(enter_or_exit, instrument_token): # 0 for exit, 1 for enter
+def sendSignal(enter_or_exit, instrument_token, current_price=None): # 0 for exit, 1 for enter
     if enter_or_exit == 1:
         for signal_queue in signal_queues.values():
             try:
-                signal_queue.put_nowait((enter_or_exit, instrument_token))
+                signal_queue.put_nowait((enter_or_exit, instrument_token, current_price))
             except queue.Full:
                 pass
     else:
         current_position = current_positions[instrument_token]
         for user in current_position['users']:
-            signal_queues[user[0]].put((enter_or_exit, instrument_token, user[1]), block=True)
+            signal_queues[user[0]].put((enter_or_exit, instrument_token, current_price), block=True)
 
 def tradeExecutor(zerodha_user_id, kite):
     updateFundAvailable(zerodha_user_id, kite)
     signal_queue = signal_queues[zerodha_user_id]
     while True:
         signal = signal_queue.get(True)
-        # if signal[0] == 1:
-        #     kite.place_order(variety='CO', exchange='NSE', tradingsymbol='d', transaction_type='d', quantity='d',
-        #                      product='d', order_type='df', price='d', validity='df', disclosed_quantity='d',
-        #                      trigger_price='d', squareoff='df', stoploss='dfe', trailing_stoploss='df', tag='j')
+        if signal[0] == 1 and not pending_orders.get(zerodha_user_id):
+            quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
+            if variety == 'co':
+                #trigger_price = calculateCOtriggerPrice()
+                order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
+                                 transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
+                                 validity='DAY', disclosed_quantity=quantity, trigger_price='d')
+            # variety = regular, amo, bo, co
+            # exchange = NSE, BSE
+            # tradingsymbol = IRCTC, SBICARD, etc..
+            # transaction_type = BUY, SELL
+            # quantity = number of stocks
+            # product = CNC, MIS
+            # order_type = MARKET, LIMIT, SL, SL-M
+            # price = limit price
+            # validity = DAY, IOC # use day always
+            # disclosed quantity = within 10 to 100 % of quantity. # set this same as quantity
+            # trigger price = entry trigger price
+            # squareoff = target profit to exit. Profit amount in Rupees
+            # stoploss = loss amount in Rupees to exit
+            # trailing_stoploss = moving stoploss
+            # tag = random alphanumeric id attached to the order
+
+def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_price):
+    order_variety_local = order_variety
+    if order_variety_local == 'co':
+        margin = token_co_margins[instrument_token]
+    else:
+        margin = token_mis_margins[instrument_token]
+    total_fund = margin * funds_available[zerodha_user_id]
+    quantity = total_fund//(current_price + 1) # 1 added to match the anticipated price increase in the time gap
+    return (quantity, order_variety_local)
 
 def updateFundAvailable(zerodha_user_id, kite):
-    pass
+    margin = kite.margins()
+    fund_available = margin['data']['equity']['available']['cash']
+    funds_available[zerodha_user_id] = fund_available

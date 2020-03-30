@@ -4,6 +4,11 @@ from django.db import models
 
 # Create your models here.
 
+class KiteConnectApp(models.Model):
+    hstock_user = models.ForeignKey(User, related_name='user_kite_app', on_delete=models.CASCADE, primary_key=True)
+    api_key = models.CharField(max_length=100)
+    api_secret = models.CharField(max_length=100)
+
 class ZerodhaAccount(models.Model):
     hstock_user = models.ForeignKey(User, related_name='user_zerodha', on_delete=models.CASCADE, primary_key=True)
     access_token = models.CharField(max_length=100)
