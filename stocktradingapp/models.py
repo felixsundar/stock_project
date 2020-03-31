@@ -33,4 +33,6 @@ class Stock(models.Model):
     stock_name = models.CharField(max_length=100, unique=True)
     mis_margin = models.FloatField()
     co_margin = models.FloatField()
+    co_trigger_percent_lower = models.FloatField()
+    co_trigger_percent_upper = models.FloatField()
     active = models.BooleanField()

@@ -3,6 +3,7 @@ import queue
 import threading
 from queue import PriorityQueue
 
+import requests
 from django.contrib.auth.models import User
 from kiteconnect import KiteConnect
 
@@ -15,24 +16,25 @@ current_positions = {} # {'instrument_token': {'entry_price': entry_price,
                        #                       'stoploss': stoploss,
                        #                       'users': [(zerodha_user_id, number_of_stocks)]
                        #                      }
-                       # }
-pending_orders = {}
+                       # } for each token
+pending_orders = {} # for each user
 funds_available = {} # for each user
 signal_queues = {} # for each user
 token_symbols = {} # for each token
 token_trigger_prices = {} # for each token
 token_mis_margins = {} # for each token
 token_co_margins = {} # for each token
+token_co_lower_trigger = {} # for each token
+token_co_upper_trigger = {} # for each token
 order_variety = 'co'
 
 def analyzeTicks(tick_queue):
     kites = setupTradingThreads()
     if not kites:
         return
-    instruments = setupTokenInfoMap()
-    # trigger_range_response = kites[0].trigger_range('SELL', 'NSE:TATASTEEL', 'NSE:VEDL', 'NSE:ONGC')
-    trigger_range_response = kites[0].trigger_range('SELL', 895745, 633601, 348929, 784129)
-    logging.debug('\n\n\n\ntrigger range response : \n\n{}'.format(trigger_range_response))
+    updateTriggerRanges()
+    setupTokenInfoMap()
+    # logging.debug('\n\n\n\ntrigger range response : \n\n{}'.format(trigger_range_response))
     while True:
         try:
             tick = tick_queue.get(True)
@@ -44,9 +46,61 @@ def analyzeTicks(tick_queue):
                     checkEntryTrigger(instrument_token, current_price)
                     checkStoploss(instrument_token, current_price)
             else:
-                processMessage(tick)
+                pass
         except Exception as e:
             pass
+
+def setupTradingThreads():
+    users = User.objects.filter(is_active=True)
+    if not users.exists():
+        return False
+    kites = []
+    for user in users:
+        user_zerodha = user.user_zerodha.first()
+        if user_zerodha is None:
+            continue
+        kite = KiteConnect(user_zerodha.api_key)
+        kite.set_access_token(user_zerodha.access_token)
+        fund_available = updateFundAvailable(user_zerodha.user_id, kite)
+        user_zerodha.fund_available = fund_available
+        user_zerodha.save()
+        signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=5)
+        pending_orders[user_zerodha.user_id] = []
+        trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id, kite,),
+                                          name=user_zerodha.user_id+'_trader')
+        trading_thread.start()
+        kites.append(kite)
+    return kites
+
+def updateFundAvailable(zerodha_user_id, kite):
+    margin = kite.margins()
+    fund_available = margin['equity']['available']['live_balance']
+    funds_available[zerodha_user_id] = fund_available
+    return fund_available
+
+def updateTriggerRanges():
+    trigger_ranges = requests.get(url=settings.TRIGGER_RANGE_URL)
+    stocks = Stock.objects.filter(active=True)
+    symbol_stock = {}
+    for stock in stocks:
+        symbol_stock[stock.trading_symbol] = stock
+    for instrument in trigger_ranges:
+        stock = symbol_stock.get(instrument['tradingsymbol'])
+        if stock is not None:
+            stock.co_trigger_percent_lower = instrument['co_lower']
+            stock.co_trigger_percent_upper = instrument['co_upper']
+            stock.mis_margin = instrument['mis_multiplier']
+            stock.save()
+
+def setupTokenInfoMap():
+    stocks = Stock.objects.filter(active=True)
+    for stock in stocks:
+        token_symbols[stock.instrument_token] = stock.trading_symbol
+        token_trigger_prices[stock.instrument_token] = 0.0 # initial trigger price
+        token_mis_margins[stock.instrument_token] = stock.mis_margin
+        token_co_margins[stock.instrument_token] = stock.co_margin
+        token_co_lower_trigger[stock.instrument_token] = stock.co_trigger_percent_lower
+        token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
 def checkEntryTrigger(instrument_token, current_price):
     trigger_price = token_trigger_prices[instrument_token]
@@ -64,42 +118,6 @@ def checkStoploss(instrument_token, current_price):
         sendSignal(0, instrument_token)
     else:  # update stoploss
         current_position['stoploss'] = min(current_position['stoploss'], 1.005 * current_price)
-
-def setupTradingThreads():
-    users = User.objects.filter(is_active=True)
-    if not users.exists():
-        return False
-    kites = []
-    for user in users:
-        user_zerodha = user.user_zerodha.first()
-        if user_zerodha is None:
-            continue
-        kite = KiteConnect(user_zerodha.api_key)
-        kite.set_access_token(user_zerodha.access_token)
-        fund_available = updateFundAvailable(user_zerodha.user_id, kite)
-        user_zerodha.fund_available = fund_available
-        user_zerodha.save()
-        signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=5)
-        trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id, kite,),
-                                          name=user_zerodha.user_id+'_trader')
-        trading_thread.start()
-        kites.append(kite)
-    return kites
-
-def setupTokenInfoMap():
-    stocks = Stock.objects.filter(active=True)
-    trading_symbols = []
-    for stock in stocks:
-        token_symbols[stock.instrument_token] = stock.trading_symbol
-        token_trigger_prices[stock.instrument_token] = 0.0 # initial trigger price
-        token_mis_margins[stock.instrument_token] = stock.mis_margin
-        token_co_margins[stock.instrument_token] = stock.co_margin
-        trading_symbols.append('NSE:'+stock.trading_symbol)
-    return trading_symbols
-
-
-def processMessage(tick):
-    pass
 
 def sendSignal(enter_or_exit, instrument_token, current_price=None): # 0 for exit, 1 for enter
     if enter_or_exit == 1:
@@ -120,11 +138,13 @@ def tradeExecutor(zerodha_user_id, kite):
         if signal[0] == 1 and not pending_orders.get(zerodha_user_id):
             quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
             logging.debug('{} order for quantity - {} placed.'.format(variety, quantity))
-            #if variety == 'co':
-                #trigger_price = calculateCOtriggerPrice()
-             #   order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
-              #                   transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
-               #                  validity='DAY', disclosed_quantity=quantity, trigger_price='d')
+            if variety == 'co':
+                trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
+                order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
+                                 transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
+                                 validity='DAY', disclosed_quantity=quantity, trigger_price=trigger_price)
+                pending_orders[zerodha_user_id].append((order_id, signal[0]))
+
             # variety = regular, amo, bo, co
             # exchange = NSE, BSE
             # tradingsymbol = IRCTC, SBICARD, etc..
@@ -151,8 +171,5 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
     quantity = total_fund//(current_price + 1) # 1 added to match the anticipated price increase in the time gap
     return (quantity, order_variety_local)
 
-def updateFundAvailable(zerodha_user_id, kite):
-    margin = kite.margins()
-    fund_available = margin['equity']['available']['live_balance']
-    funds_available[zerodha_user_id] = fund_available
-    return fund_available
+def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
+    return current_price + (current_price * (min(co_upper_trigger_percent - 1, 4.0) / 100.0))

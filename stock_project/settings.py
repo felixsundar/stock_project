@@ -127,8 +127,6 @@ LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'Asia/Kolkata'
 
-PRIMARY_USERNAME = 'felixsundar'
-
 USE_I18N = True
 
 USE_L10N = True
@@ -147,6 +145,10 @@ MEDIA_URL = '/media/'
 
 LOGIN_REDIRECT_URL ='index'
 LOGOUT_REDIRECT_URL = 'index'
+
+PRIMARY_USERNAME = 'felixsundar'
+
+TRIGGER_RANGE_URL = 'https://api.kite.trade/margins/equity'
 
 try:
     from .settings_local import *
