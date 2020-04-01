@@ -79,7 +79,8 @@ def updateFundAvailable(zerodha_user_id, kite):
     return fund_available
 
 def updateTriggerRanges():
-    trigger_ranges = requests.get(url=settings.TRIGGER_RANGE_URL)
+    trigger_ranges_response = requests.get(url=settings.TRIGGER_RANGE_URL)
+    trigger_ranges = trigger_ranges_response.json()
     stocks = Stock.objects.filter(active=True)
     symbol_stock = {}
     for stock in stocks:
@@ -172,4 +173,4 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
     return (quantity, order_variety_local)
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
-    return current_price + (current_price * (min(co_upper_trigger_percent - 1, 4.0) / 100.0))
+    return current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 4.0) / 100.0))

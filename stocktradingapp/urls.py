@@ -7,4 +7,5 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('auth/zerodha/', views.authZerodha, name='authZerodha'),
     path('auth/zerodha/redirect/', views.authRedirect, name='redirect'),
+    path('zerodha/postback/', views.zerodhaPostback, name='postback'),
 ]
