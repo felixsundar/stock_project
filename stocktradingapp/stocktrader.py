@@ -34,17 +34,17 @@ def analyzeTicks(tick_queue):
         return
     updateTriggerRanges()
     setupTokenInfoMap()
-    # logging.debug('\n\n\n\ntrigger range response : \n\n{}'.format(trigger_range_response))
+    printInitialValues()
     while True:
         try:
             tick = tick_queue.get(True)
-            logging.debug('\n\n\ntick: \n{}'.format(tick))
             if isinstance(tick, (list,)):
                 for instrument in tick:
                     instrument_token = instrument['instrument_token']
                     current_price = instrument['last_price']
                     checkEntryTrigger(instrument_token, current_price)
                     checkStoploss(instrument_token, current_price)
+                logging.debug('tick - {}'.format(tick))
             else:
                 pass
         except Exception as e:
@@ -103,6 +103,18 @@ def setupTokenInfoMap():
         token_co_lower_trigger[stock.instrument_token] = stock.co_trigger_percent_lower
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
+def printInitialValues():
+    logging.debug('\n\ncurrent Positions - {}\n\n'.format(current_positions))
+    logging.debug('\n\npending orders - {}\n\n'.format(pending_orders))
+    logging.debug('\n\nfunds available - {}\n\n'.format(funds_available))
+    logging.debug('\n\nsignal queues - {}\n\n'.format(signal_queues))
+    logging.debug('\n\ntoken symbols - {}\n\n'.format(token_symbols))
+    logging.debug('\n\ntoken trigger prices - {}\n\n'.format(token_trigger_prices))
+    logging.debug('\n\ntoken mis margins - {}\n\n'.format(token_mis_margins))
+    logging.debug('\n\ntoken co margins - {}\n\n'.format(token_co_margins))
+    logging.debug('\n\ntoken co lower trigger - {}\n\n'.format(token_co_lower_trigger))
+    logging.debug('\n\ntoken co upper trigger - {}\n\n'.format(token_co_upper_trigger))
+
 def checkEntryTrigger(instrument_token, current_price):
     trigger_price = token_trigger_prices[instrument_token]
     if current_price < trigger_price:  # entry trigger breached
@@ -136,15 +148,30 @@ def tradeExecutor(zerodha_user_id, kite):
     signal_queue = signal_queues[zerodha_user_id]
     while True:
         signal = signal_queue.get(True)
-        if signal[0] == 1 and not pending_orders.get(zerodha_user_id):
-            quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
-            logging.debug('{} order for quantity - {} placed.'.format(variety, quantity))
-            if variety == 'co':
-                trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
-                order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
-                                 transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
-                                 validity='DAY', disclosed_quantity=quantity, trigger_price=trigger_price)
-                pending_orders[zerodha_user_id].append((order_id, signal[0]))
+        try:
+            if signal[0] == 1 and not pending_orders.get(zerodha_user_id):
+                quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
+                # logging.debug('Entry signal received for zerodha user - {}'
+                #               '\nInstrument token for entry - {}'
+                #               '\nCurrent price of instrument - {}'
+                #               '\nCalculated order quantity - {}'.format(zerodha_user_id, signal[1], signal[2], quantity))
+
+                if variety == 'co':
+                    trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
+                    order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
+                                                transaction_type='SELL', quantity=quantity, product='MIS',
+                                                order_type='MARKET',
+                                                validity='DAY', disclosed_quantity=quantity,
+                                                trigger_price=trigger_price)
+                    pending_orders[zerodha_user_id].append((order_id, signal[0]))
+                    logging.debug('CO ENTRY ORDER PLACED for zerodha user - {}'
+                                  '\nInstrument token for entry - {}'
+                                  '\nTrigger price for co order exit - {}'
+                                  '\norder quantity - {}'.format(zerodha_user_id, signal[1],
+                                                                            trigger_price, quantity))
+        except Exception as e:
+            logging.debug('Exception while placing order for user - {}\n'
+                          'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
 
             # variety = regular, amo, bo, co
             # exchange = NSE, BSE
@@ -173,4 +200,4 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
     return (quantity, order_variety_local)
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
-    return current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 4.0) / 100.0))
+    return current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 1.5) / 100.0))

@@ -56,9 +56,11 @@ def authRedirect(request):
     return HttpResponseRedirect(reverse(index))
 
 def zerodhaPostback(request):
+    logging.debug('\n\n\nreceived placed order details : \n\n\n{}'.format(request.body))
     order_details = json.loads(request.body)
-    if not verifyCheckSum(order_details):
-        return
+    logging.debug('\n\n\nreceived placed order details json format : \n\n\n{}'.format(order_details))
+    # if not verifyCheckSum(order_details):
+    #     return
     return None
 
 def verifyCheckSum(order_details):

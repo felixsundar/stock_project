@@ -3,12 +3,12 @@ logged in as : {{request.user.username}}
 <a href="{% url 'authZerodha' %}">Link Zerodha</a>
 <br><br>
 {% if user_zerodha %}
-<b>zerodha account linked:</b>
-user id : {{user_zerodha.user_id}}
-user name : {{user_zerodha.user_name}}
-user shortname : {{user_zerodha.user_shortname}}
-email : {{user_zerodha.email}}
+<b>zerodha account linked:</b><br>
+user id : {{user_zerodha.user_id}}<br>
+user name : {{user_zerodha.user_name}}<br>
+user shortname : {{user_zerodha.user_shortname}}<br>
+email : {{user_zerodha.email}}<br>
 {% endif %}
 
-<br><br><br><br>
+<br><br><br>
 <a href="{% url 'logout' %}">Logout</a>
