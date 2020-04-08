@@ -3,11 +3,12 @@ import json
 import logging
 
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponse
 from django.shortcuts import render
 
 # Create your views here.
 from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
 from kiteconnect import KiteConnect
 
 from stock_project import settings
@@ -55,29 +56,24 @@ def authRedirect(request):
     user_zerodha.save()
     return HttpResponseRedirect(reverse(index))
 
+@csrf_exempt
 def zerodhaPostback(request):
-    try:
-        logging.debug('\n\n\nreceived placed order details : \n\n\n{}'.format(request.body))
-    except Exception as e:
-        logging.debug('{}'.format(e))
-    try:
-        order_details = json.loads(request.body)
-        logging.debug('\n\n\nreceived placed order details json format : \n\n\n{}'.format(order_details))
-    except Exception as e:
-        logging.debug('{}'.format(e))
-
-    # if not verifyCheckSum(order_details):
-    #     return
-    return None
+    order_details = json.loads(request.body)
+    if verifyCheckSum(order_details):
+        stocktrader.updateOrderFromPostback(order_details)
+    return HttpResponse('order details received.')
 
 def verifyCheckSum(order_details):
-    user_zerodha = ZerodhaAccount.objects.filter(user_id = order_details['user_id'])
-    kite_app = user_zerodha.hstock_user.user_kite_app.first()
-    if kite_app is None:
-        return True
-    api_secret = kite_app.api_secret
-    stringToHash = order_details['order_id'] + order_details['order_timestamp'] + api_secret
-    hashedString = hashlib.sha256(stringToHash.encode()).hexdigest()
-    if hashedString == order_details['checksum']:
-        return True
+    try:
+        user_zerodha = ZerodhaAccount.objects.get(user_id=order_details['user_id'])
+        kite_app = user_zerodha.hstock_user.user_kite_app.first()
+        if kite_app is None:
+            return False
+        api_secret = kite_app.api_secret
+        stringToHash = order_details['order_id'] + order_details['order_timestamp'] + api_secret
+        hashedString = hashlib.sha256(stringToHash.encode()).hexdigest()
+        if hashedString == order_details['checksum']:
+            return True
+    except:
+        pass
     return False

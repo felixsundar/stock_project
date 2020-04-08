@@ -2,6 +2,7 @@ import logging
 import queue
 import threading
 from queue import PriorityQueue
+from time import sleep
 
 import requests
 from django.contrib.auth.models import User
@@ -12,11 +13,18 @@ from stocktradingapp.models import Stock
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
+# CONSTANTS
+# enter_or_exit: 1 - enter, 0 - exit
+STATUS_COMPLETE = 'COMPLETE'
+STATUS_CANCELLED = 'CANCELLED'
+STATUS_REJECTED = 'REJECTED'
+
 current_positions = {} # {'instrument_token': {'entry_price': entry_price,
                        #                       'stoploss': stoploss,
                        #                       'users': [(zerodha_user_id, number_of_stocks)]
                        #                      }
                        # } for each token
+user_kites = {} # for each user
 pending_orders = {} # for each user
 funds_available = {} # for each user
 signal_queues = {} # for each user
@@ -29,8 +37,7 @@ token_co_upper_trigger = {} # for each token
 order_variety = 'co'
 
 def analyzeTicks(tick_queue):
-    kites = setupTradingThreads()
-    if not kites:
+    if not setupTradingThreads():
         return
     updateTriggerRanges()
     setupTokenInfoMap()
@@ -54,26 +61,32 @@ def setupTradingThreads():
     users = User.objects.filter(is_active=True)
     if not users.exists():
         return False
-    kites = []
+    zerodha_present = False
     for user in users:
         user_zerodha = user.user_zerodha.first()
         if user_zerodha is None:
             continue
+        zerodha_present = True
+
         kite = KiteConnect(user_zerodha.api_key)
         kite.set_access_token(user_zerodha.access_token)
-        fund_available = updateFundAvailable(user_zerodha.user_id, kite)
+        user_kites[user_zerodha.user_id] = kite
+
+        fund_available = updateFundAvailable(user_zerodha.user_id)
         user_zerodha.fund_available = fund_available
         user_zerodha.save()
+
         signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=5)
         pending_orders[user_zerodha.user_id] = []
-        trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id, kite,),
+
+        trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id,),
                                           name=user_zerodha.user_id+'_trader')
         trading_thread.start()
-        kites.append(kite)
-    return kites
 
-def updateFundAvailable(zerodha_user_id, kite):
-    margin = kite.margins()
+    return zerodha_present
+
+def updateFundAvailable(zerodha_user_id):
+    margin = user_kites[zerodha_user_id].margins()
     fund_available = margin['equity']['available']['live_balance']
     funds_available[zerodha_user_id] = fund_available
     return fund_available
@@ -144,8 +157,9 @@ def sendSignal(enter_or_exit, instrument_token, current_price=None): # 0 for exi
         for user in current_position['users']:
             signal_queues[user[0]].put((enter_or_exit, instrument_token, current_price), block=True)
 
-def tradeExecutor(zerodha_user_id, kite):
+def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
+    kite = user_kites[zerodha_user_id]
     place = True
     while True:
         signal = signal_queue.get(True)
@@ -178,7 +192,7 @@ def tradeExecutor(zerodha_user_id, kite):
 
 def placeEntryOrder(zerodha_user_id, kite, signal):
     quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
-    if variety == 'co':
+    if variety == 'co': #place co order
         trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
                                     transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
@@ -186,7 +200,7 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
         logging.debug('CO ENTRY ORDER PLACED for zerodha user - {}\nInstrument token for entry - {}'
                       '\nTrigger price for co order exit - {}'
                       '\norder quantity - {}'.format(zerodha_user_id, signal[1], trigger_price, quantity))
-    else:
+    else: #place regular order(mis)
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
                                     transaction_type='SELL', quantity=quantity, product='MIS',
                                     order_type='MARKET', validity='DAY', disclosed_quantity=quantity)
@@ -206,4 +220,34 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
     trigger_price = current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 1.5) / 100.0))
-    return float('{:.2f}'.format(trigger_price))
+    return float('{:.1f}'.format(trigger_price))
+
+def updateOrderFromPostback(order_details):
+    sleep(0.5) # postback may be received instantly after placing order. wait till order id is entered in the pending orders list
+    pending_order = getPendingOrder(order_details)
+    if pending_order is None:
+        return
+    if order_details['status'] == STATUS_CANCELLED:
+        pending_orders[order_details['user_id']].remove(pending_order)
+    elif order_details['status'] == STATUS_REJECTED:
+        pending_orders[order_details['user_id']].remove(pending_order)
+        order_variety = 'regular'
+    elif order_details['status'] == STATUS_COMPLETE:
+        updateFundAvailable(order_details['user_id'])
+        if pending_order['enter_or_exit'] == 1:
+            updateEntryOrderComplete(pending_order, order_details)
+        else:
+            updateExitOrderComplete(pending_order, order_details)
+
+def getPendingOrder(order_details):
+    user_pending_orders = pending_orders[order_details['user_id']]
+    for order in user_pending_orders:
+        if order['order_id'] == order_details['order_id']:
+            return order
+    return None
+
+def updateEntryOrderComplete(pending_order, order_details):
+    pass
+
+def updateExitOrderComplete(pending_order, order_details):
+    pass
