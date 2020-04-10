@@ -18,42 +18,42 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 STATUS_COMPLETE = 'COMPLETE'
 STATUS_CANCELLED = 'CANCELLED'
 STATUS_REJECTED = 'REJECTED'
+CO_ORDER = 'co'
+REGULAR_ORDER = 'regular'
 
-current_positions = {} # {'instrument_token': {'entry_price': entry_price,
-                       #                       'stoploss': stoploss,
-                       #                       'users': [(zerodha_user_id, number_of_stocks)]
-                       #                      }
+current_positions = {} # {'instrument_token1': [],
+                       #  'instrument_token2': [],
+                       #  'instrument_token3': [{position1},
+                       #                        {position2},
+                       #                        {'user_id', 'number_of_stocks', 'variety', 'entry_price':45.8, 'stoploss':47.4}
+                       #                       ]
                        # } for each token
 user_kites = {} # for each user
-pending_orders = {} # for each user
+pending_orders = {} # for each user {userid1:[], userid2:[], userid3:[{orderid:32435, enter_or_exit:1}]}
 funds_available = {} # for each user
 signal_queues = {} # for each user
 token_symbols = {} # for each token
 token_trigger_prices = {} # for each token
 token_mis_margins = {} # for each token
 token_co_margins = {} # for each token
-token_co_lower_trigger = {} # for each token
 token_co_upper_trigger = {} # for each token
 order_variety = 'co'
 
 def analyzeTicks(tick_queue):
     if not setupTradingThreads():
         return
-    updateTriggerRanges()
+    updateTriggerRangesInDB()
     setupTokenInfoMap()
     printInitialValues()
     while True:
         try:
             tick = tick_queue.get(True)
-            if isinstance(tick, (list,)):
-                for instrument in tick:
-                    instrument_token = instrument['instrument_token']
-                    current_price = instrument['last_price']
-                    checkEntryTrigger(instrument_token, current_price)
-                    checkStoploss(instrument_token, current_price)
-                # logging.debug('tick - {}'.format(tick))
-            else:
-                pass
+            for instrument in tick:
+                instrument_token = instrument['instrument_token']
+                current_price = instrument['last_price']
+                checkEntryTrigger(instrument_token, current_price)
+                checkStoploss(instrument_token, current_price)
+            # logging.debug('tick - {}'.format(tick))
         except Exception as e:
             pass
 
@@ -91,7 +91,7 @@ def updateFundAvailable(zerodha_user_id):
     funds_available[zerodha_user_id] = fund_available
     return fund_available
 
-def updateTriggerRanges():
+def updateTriggerRangesInDB():
     trigger_ranges_response = requests.get(url=settings.TRIGGER_RANGE_URL)
     trigger_ranges = trigger_ranges_response.json()
     stocks = Stock.objects.filter(active=True)
@@ -109,11 +109,11 @@ def updateTriggerRanges():
 def setupTokenInfoMap():
     stocks = Stock.objects.filter(active=True)
     for stock in stocks:
+        current_positions[stock.instrument_token] = []
         token_symbols[stock.instrument_token] = stock.trading_symbol
         token_trigger_prices[stock.instrument_token] = 0.0 # initial trigger price
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
-        token_co_lower_trigger[stock.instrument_token] = stock.co_trigger_percent_lower
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
 def printInitialValues():
@@ -125,7 +125,6 @@ def printInitialValues():
     logging.debug('\n\ntoken trigger prices - {}\n\n'.format(token_trigger_prices))
     logging.debug('\n\ntoken mis margins - {}\n\n'.format(token_mis_margins))
     logging.debug('\n\ntoken co margins - {}\n\n'.format(token_co_margins))
-    logging.debug('\n\ntoken co lower trigger - {}\n\n'.format(token_co_lower_trigger))
     logging.debug('\n\ntoken co upper trigger - {}\n\n'.format(token_co_upper_trigger))
 
 def checkEntryTrigger(instrument_token, current_price):
@@ -137,9 +136,10 @@ def checkEntryTrigger(instrument_token, current_price):
         token_trigger_prices[instrument_token] = max(trigger_price, 0.995 * current_price)
 
 def checkStoploss(instrument_token, current_price):
-    current_position = current_positions.get(instrument_token)
-    if current_position is None:
-        return
+    current_positions_for_token = current_positions[instrument_token]
+    for position in current_positions_for_token:
+        if current_price >= position['stoploss']: # stoploss breached
+            sendSignal(0, )
     if current_price >= current_position['stoploss']:  # stoploss breached
         sendSignal(0, instrument_token)
     else:  # update stoploss
@@ -247,7 +247,41 @@ def getPendingOrder(order_details):
     return None
 
 def updateEntryOrderComplete(pending_order, order_details):
-    pass
+    if order_details['variety'] == CO_ORDER:
+        second_leg_order_details = getSecondLegOrder(order_details)
+        new_position = constructNewCOposition(order_details, second_leg_order_details)
+    else:
+        new_position = constructNewRegularPosition(order_details)
+    current_positions[order_details['instrument_token']].append(new_position)
+    pending_orders[order_details['user_id']].remove(pending_order)
 
 def updateExitOrderComplete(pending_order, order_details):
     pass
+
+def constructNewRegularPosition(order_details):
+    new_position = {}
+    new_position['user_id'] = order_details['user_id']
+    new_position['variety'] = order_details['variety']
+    new_position['number_of_stocks'] = order_details['filled_quantity']
+    new_position['entry_price'] = order_details['average_price']
+    new_position['stoploss'] = order_details['average_price'] + order_details['average_price'] * 0.005
+    return new_position
+
+def getSecondLegOrder(order_details):
+    kite = user_kites[order_details['user_id']]
+    orders = kite.orders()
+    for order in orders:
+        if order['parent_order_id'] == order_details['order_id']:
+            return order
+    raise Exception
+
+def constructNewCOposition(order_details, second_leg_order_details):
+    new_position = {}
+    new_position['user_id'] = order_details['user_id']
+    new_position['order_id'] = second_leg_order_details['order_id']
+    new_position['parent_order_id'] = second_leg_order_details['parent_ordder_id']
+    new_position['variety'] = order_details['variety']
+    new_position['number_of_stocks'] = order_details['filled_quantity']
+    new_position['entry_price'] = order_details['average_price']
+    new_position['stoploss'] = order_details['average_price'] + order_details['average_price'] * 0.005
+    return new_position
