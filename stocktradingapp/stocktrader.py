@@ -29,7 +29,7 @@ current_positions = {} # {'instrument_token1': [],
                        #                       ]
                        # } for each token
 user_kites = {} # for each user
-pending_orders = {} # for each user {userid1:[], userid2:[], userid3:[{orderid:32435, enter_or_exit:1}]}
+pending_orders = {} # for each user {userid1:[], userid2:[], userid3:[{enter_or_exit:1, orderid:32435, instrument_token:xx}]}
 funds_available = {} # for each user
 signal_queues = {} # for each user
 token_symbols = {} # for each token
@@ -139,23 +139,20 @@ def checkStoploss(instrument_token, current_price):
     current_positions_for_token = current_positions[instrument_token]
     for position in current_positions_for_token:
         if current_price >= position['stoploss']: # stoploss breached
-            sendSignal(0, )
-    if current_price >= current_position['stoploss']:  # stoploss breached
-        sendSignal(0, instrument_token)
-    else:  # update stoploss
-        current_position['stoploss'] = min(current_position['stoploss'], 1.005 * current_price)
+            sendSignal(0, instrument_token, position)
+        else:  # update stoploss
+            position['stoploss'] = min(position['stoploss'], 1.005 * current_price)
 
-def sendSignal(enter_or_exit, instrument_token, current_price=None): # 0 for exit, 1 for enter
+def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition): # 0 for exit, 1 for enter
     if enter_or_exit == 1:
         for signal_queue in signal_queues.values():
             try:
-                signal_queue.put_nowait((enter_or_exit, instrument_token, current_price))
+                signal_queue.put_nowait((enter_or_exit, instrument_token, currentPrice_or_currentPosition))
             except queue.Full:
                 pass
     else:
-        current_position = current_positions[instrument_token]
-        for user in current_position['users']:
-            signal_queues[user[0]].put((enter_or_exit, instrument_token, current_price), block=True)
+        signal_queue = signal_queues[currentPrice_or_currentPosition['user_id']]
+        signal_queue.put((enter_or_exit, instrument_token, currentPrice_or_currentPosition), block=True)
 
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
@@ -164,12 +161,11 @@ def tradeExecutor(zerodha_user_id):
     while True:
         signal = signal_queue.get(True)
         try:
-            if signal[0] == 1 and not pending_orders.get(zerodha_user_id) and place == True:
+            if signal[0] == 1 and verifyEntryCondition(zerodha_user_id, signal[1]) and place == True:
                 placeEntryOrder(zerodha_user_id, kite, signal)
                 place = False
-            else:
-                pass
-                # placeExitOrder(zerodha_user_id, kite, signal)
+            elif verifyExitCondition(signal[1], signal[2]):
+                placeExitOrder(kite, signal)
         except Exception as e:
             logging.debug('Exception while placing order for user - {}\n'
                           'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
@@ -190,6 +186,13 @@ def tradeExecutor(zerodha_user_id):
             # trailing_stoploss = moving stoploss
             # tag = random alphanumeric id attached to the order
 
+def verifyEntryCondition(zerodha_user_id, instrument_token):
+    current_positions_for_token = current_positions[instrument_token]
+    for position in current_positions_for_token:
+        if position['user_id'] == zerodha_user_id:
+            return False
+    return False if pending_orders[zerodha_user_id] else True
+
 def placeEntryOrder(zerodha_user_id, kite, signal):
     quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
     if variety == 'co': #place co order
@@ -206,7 +209,17 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
                                     order_type='MARKET', validity='DAY', disclosed_quantity=quantity)
         logging.debug('REGULAR ENTRY ORDER PLACED for zerodha user - {}\nInstrument token for entry - {}'
                       '\norder quantity - {}'.format(zerodha_user_id, signal[1], quantity))
-    pending_orders[zerodha_user_id].append((order_id, signal[0]))
+    pending_orders[zerodha_user_id].append({'enter_or_exit':1, 'order_id':order_id, 'instrument_token':signal[1]})
+
+def verifyExitCondition(instrument_token, position):
+    pending_orders_for_user = pending_orders[position['user_id']]
+    for pending_order in pending_orders_for_user:
+        if pending_order['instrument_token'] == instrument_token and pending_orders['enter_or_exit'] == 0:
+            return False
+    return True
+
+def placeExitOrder(kite, signal):
+    pass
 
 def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_price):
     order_variety_local = order_variety
@@ -231,6 +244,7 @@ def updateOrderFromPostback(order_details):
         pending_orders[order_details['user_id']].remove(pending_order)
     elif order_details['status'] == STATUS_REJECTED:
         pending_orders[order_details['user_id']].remove(pending_order)
+        global order_variety
         order_variety = 'regular'
     elif order_details['status'] == STATUS_COMPLETE:
         updateFundAvailable(order_details['user_id'])
@@ -249,23 +263,14 @@ def getPendingOrder(order_details):
 def updateEntryOrderComplete(pending_order, order_details):
     if order_details['variety'] == CO_ORDER:
         second_leg_order_details = getSecondLegOrder(order_details)
-        new_position = constructNewCOposition(order_details, second_leg_order_details)
+        new_position = constructNewPosition(order_details, second_leg_order_details)
     else:
-        new_position = constructNewRegularPosition(order_details)
+        new_position = constructNewPosition(order_details)
     current_positions[order_details['instrument_token']].append(new_position)
     pending_orders[order_details['user_id']].remove(pending_order)
 
 def updateExitOrderComplete(pending_order, order_details):
     pass
-
-def constructNewRegularPosition(order_details):
-    new_position = {}
-    new_position['user_id'] = order_details['user_id']
-    new_position['variety'] = order_details['variety']
-    new_position['number_of_stocks'] = order_details['filled_quantity']
-    new_position['entry_price'] = order_details['average_price']
-    new_position['stoploss'] = order_details['average_price'] + order_details['average_price'] * 0.005
-    return new_position
 
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]
@@ -275,13 +280,14 @@ def getSecondLegOrder(order_details):
             return order
     raise Exception
 
-def constructNewCOposition(order_details, second_leg_order_details):
+def constructNewPosition(order_details, second_leg_order_details=None):
     new_position = {}
     new_position['user_id'] = order_details['user_id']
-    new_position['order_id'] = second_leg_order_details['order_id']
-    new_position['parent_order_id'] = second_leg_order_details['parent_ordder_id']
     new_position['variety'] = order_details['variety']
     new_position['number_of_stocks'] = order_details['filled_quantity']
     new_position['entry_price'] = order_details['average_price']
     new_position['stoploss'] = order_details['average_price'] + order_details['average_price'] * 0.005
+    if second_leg_order_details:
+        new_position['order_id'] = second_leg_order_details['order_id']
+        new_position['parent_order_id'] = second_leg_order_details['parent_order_id']
     return new_position
