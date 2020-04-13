@@ -71,6 +71,7 @@ def setupTradingThreads():
         kite = KiteConnect(user_zerodha.api_key)
         kite.set_access_token(user_zerodha.access_token)
         user_kites[user_zerodha.user_id] = kite
+        kite.cancel_order()
 
         fund_available = updateFundAvailable(user_zerodha.user_id)
         user_zerodha.fund_available = fund_available
@@ -162,10 +163,10 @@ def tradeExecutor(zerodha_user_id):
         signal = signal_queue.get(True)
         try:
             if signal[0] == 1 and verifyEntryCondition(zerodha_user_id, signal[1]) and place == True:
-                placeEntryOrder(zerodha_user_id, kite, signal)
                 place = False
-            elif verifyExitCondition(signal[1], signal[2]):
-                placeExitOrder(kite, signal)
+                placeEntryOrder(zerodha_user_id, kite, signal)
+            elif signal[0] == 0  and verifyExitCondition(signal[1], signal[2]):
+                placeExitOrder(kite, signal[1], signal[2])
         except Exception as e:
             logging.debug('Exception while placing order for user - {}\n'
                           'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
@@ -214,12 +215,18 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
 def verifyExitCondition(instrument_token, position):
     pending_orders_for_user = pending_orders[position['user_id']]
     for pending_order in pending_orders_for_user:
-        if pending_order['instrument_token'] == instrument_token and pending_orders['enter_or_exit'] == 0:
+        if pending_order['instrument_token'] == instrument_token and pending_order['enter_or_exit'] == 0:
             return False
     return True
 
-def placeExitOrder(kite, signal):
-    pass
+def placeExitOrder(kite, instrument_token, position):
+    if position['variety'] == 'co':
+        order_id = kite.cancel_order(variety='co', order_id=position['order_id'], parent_order_id=position['parent_order_id'])
+    else:
+        order_id = kite.place_order(variety=position['variety'], exchange='NSE', tradingsymbol=token_symbols[instrument_token],
+                                    transaction_type='BUY', quantity=position['number_of_stocks'], product='MIS',
+                                    order_type='MARKET', validity='DAY', disclosed_quantity=position['number_of_stocks'])
+    pending_orders[position['user_id']].append({'enter_or_exit':0, 'order_id':order_id, 'instrument_token':instrument_token})
 
 def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_price):
     order_variety_local = order_variety
