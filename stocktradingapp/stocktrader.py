@@ -256,9 +256,10 @@ def updateOrderFromPostback(order_details):
     elif order_details['status'] == STATUS_COMPLETE:
         updateFundAvailable(order_details['user_id'])
         if pending_order['enter_or_exit'] == 1:
-            updateEntryOrderComplete(pending_order, order_details)
+            updateEntryOrderComplete(order_details)
         else:
-            updateExitOrderComplete(pending_order, order_details)
+            updateExitOrderComplete(order_details)
+        pending_orders[order_details['user_id']].remove(pending_order)
 
 def getPendingOrder(order_details):
     user_pending_orders = pending_orders[order_details['user_id']]
@@ -267,17 +268,20 @@ def getPendingOrder(order_details):
             return order
     return None
 
-def updateEntryOrderComplete(pending_order, order_details):
+def updateEntryOrderComplete(order_details):
     if order_details['variety'] == CO_ORDER:
         second_leg_order_details = getSecondLegOrder(order_details)
         new_position = constructNewPosition(order_details, second_leg_order_details)
     else:
         new_position = constructNewPosition(order_details)
     current_positions[order_details['instrument_token']].append(new_position)
-    pending_orders[order_details['user_id']].remove(pending_order)
 
-def updateExitOrderComplete(pending_order, order_details):
-    pass
+def updateExitOrderComplete(order_details):
+    current_positions_for_instrument = current_positions[order_details['instrument_token']]
+    for position in current_positions_for_instrument:
+        if position['user_id'] == order_details['user_id']:
+            current_positions_for_instrument.remove(position)
+            return
 
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]
