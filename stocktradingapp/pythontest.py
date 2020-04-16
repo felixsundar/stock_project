@@ -9,7 +9,7 @@ from stock_project import settings
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 def runTests():
-    schedule.every().day.at('11:00').do(logtime)
+    schedule.every().day.at('5:35').do(logtime)
     while True:
         schedule.run_pending()
         sleep(1)
