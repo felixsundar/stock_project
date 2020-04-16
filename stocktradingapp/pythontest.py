@@ -5,15 +5,19 @@ from time import sleep
 
 import pytz
 import schedule
+from django.utils.timezone import now
 
 from stock_project import settings
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 def runTests():
-    schedule.every().day.at('12:18').do(logtime)
+    schedule.every().day.at('12:46').do(logtime)
     logging.debug('schedule started...')
-    logging.debug('tiMe - {}'.format(time.time()))
-    logging.debug('timezOne - {}'.format(time.timezone))
+    logging.debug('tiMe : {}'.format(time.time()))
+    logging.debug('localtiMe : {}'.format(time.localtime()))
+    logging.debug('gmtiMe : {}'.format(time.gmtime()))
+    logging.debug('timezOne : {}'.format(time.timezone))
+    logging.debug('django time : {}'.format(now()))
     while True:
         schedule.run_pending()
         sleep(1)
