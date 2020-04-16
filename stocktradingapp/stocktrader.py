@@ -49,7 +49,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenInfoMap()
     printInitialValues()
-    schedule.every().day.at('15:18').do(exitAllPositions)
+    schedule.every().day.at('15:19').do(exitAllPositions)
     while True:
         try:
             tick = tick_queue.get(True)
@@ -77,7 +77,6 @@ def setupTradingThreads():
         kite = KiteConnect(user_zerodha.api_key)
         kite.set_access_token(user_zerodha.access_token)
         user_kites[user_zerodha.user_id] = kite
-        kite.cancel_order()
 
         fund_available = updateFundAvailable(user_zerodha.user_id)
         user_zerodha.fund_available = fund_available
