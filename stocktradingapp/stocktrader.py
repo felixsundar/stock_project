@@ -41,7 +41,7 @@ token_mis_margins = {} # for each token
 token_co_margins = {} # for each token
 token_co_upper_trigger = {} # for each token
 order_variety = 'co'
-entry_time_limit = datetime.now().time().replace(hour=15, minute=17, second=0, microsecond=0)
+entry_time_limit = datetime.now().time().replace(hour=15, minute=18, second=0, microsecond=0)
 
 def analyzeTicks(tick_queue):
     if not setupTradingThreads():

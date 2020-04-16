@@ -12,6 +12,7 @@ class KiteConnectApp(models.Model):
 class ZerodhaAccount(models.Model):
     hstock_user = models.ForeignKey(User, related_name='user_zerodha', on_delete=models.CASCADE, primary_key=True)
     access_token = models.CharField(max_length=100)
+    access_token_time = models.DateTimeField(null=True, blank=True)
     refresh_token = models.CharField(max_length=100)
     public_token = models.CharField(max_length=100)
     api_key = models.CharField(max_length=100)
