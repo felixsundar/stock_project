@@ -1,10 +1,13 @@
 import logging
 import queue
 import threading
+from datetime import datetime
 from queue import PriorityQueue
 from time import sleep
 
+import pytz
 import requests
+import schedule
 from django.contrib.auth.models import User
 from kiteconnect import KiteConnect
 
@@ -38,6 +41,7 @@ token_mis_margins = {} # for each token
 token_co_margins = {} # for each token
 token_co_upper_trigger = {} # for each token
 order_variety = 'co'
+entry_time_limit = datetime.now().time().replace(hour=15, minute=17, second=0, microsecond=0)
 
 def analyzeTicks(tick_queue):
     if not setupTradingThreads():
@@ -45,6 +49,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenInfoMap()
     printInitialValues()
+    schedule.every().day.at('15:18').do(exitAllPositions)
     while True:
         try:
             tick = tick_queue.get(True)
@@ -54,6 +59,7 @@ def analyzeTicks(tick_queue):
                 checkEntryTrigger(instrument_token, current_price)
                 checkStoploss(instrument_token, current_price)
             # logging.debug('tick - {}'.format(tick))
+            schedule.run_pending()
         except Exception as e:
             pass
 
@@ -192,6 +198,8 @@ def verifyEntryCondition(zerodha_user_id, instrument_token):
     for position in current_positions_for_token:
         if position['user_id'] == zerodha_user_id:
             return False
+    if datetime.now(tz=pytz.timezone(settings.TIME_ZONE)).time() > entry_time_limit:
+        return False
     return False if pending_orders[zerodha_user_id] else True
 
 def placeEntryOrder(zerodha_user_id, kite, signal):
@@ -302,3 +310,8 @@ def constructNewPosition(order_details, second_leg_order_details=None):
         new_position['order_id'] = second_leg_order_details['order_id']
         new_position['parent_order_id'] = second_leg_order_details['parent_order_id']
     return new_position
+
+def exitAllPositions():
+    for instrument_token in current_positions.keys():
+        for position in current_positions[instrument_token]:
+            sendSignal(0, instrument_token, position)
