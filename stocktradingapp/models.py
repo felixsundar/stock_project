@@ -26,6 +26,7 @@ class ZerodhaAccount(models.Model):
     products = JSONField(null=True, blank=True)
     order_types = JSONField(null=True, blank=True)
     fund_available = models.FloatField(default=0.0)
+    is_active = models.BooleanField(default=True)
 
 class Stock(models.Model):
     stock_id = models.AutoField(primary_key=True)

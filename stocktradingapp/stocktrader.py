@@ -8,11 +8,11 @@ from time import sleep
 import pytz
 import requests
 import schedule
-from django.contrib.auth.models import User
+from django.utils.timezone import now
 from kiteconnect import KiteConnect
 
 from stock_project import settings
-from stocktradingapp.models import Stock
+from stocktradingapp.models import Stock, ZerodhaAccount
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
@@ -64,16 +64,12 @@ def analyzeTicks(tick_queue):
             pass
 
 def setupTradingThreads():
-    users = User.objects.filter(is_active=True)
-    if not users.exists():
-        return False
+    user_zerodhas = ZerodhaAccount.objects.filter(is_active=True)
     zerodha_present = False
-    for user in users:
-        user_zerodha = user.user_zerodha.first()
-        if user_zerodha is None:
-            continue
+    for user_zerodha in user_zerodhas:
         zerodha_present = True
-
+        if not validateAccessToken(user_zerodha.access_token_time):
+            continue
         kite = KiteConnect(user_zerodha.api_key)
         kite.set_access_token(user_zerodha.access_token)
         user_kites[user_zerodha.user_id] = kite
@@ -90,6 +86,12 @@ def setupTradingThreads():
         trading_thread.start()
 
     return zerodha_present
+
+def validateAccessToken(access_token_time):
+    expiry_time = now().replace(hour=8, minute=30, second=0, microsecond=0)
+    if now() > expiry_time and access_token_time < expiry_time:
+        return False
+    return True
 
 def updateFundAvailable(zerodha_user_id):
     margin = user_kites[zerodha_user_id].margins()

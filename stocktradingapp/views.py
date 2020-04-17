@@ -8,6 +8,7 @@ from django.shortcuts import render
 
 # Create your views here.
 from django.urls import reverse
+from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
 from kiteconnect import KiteConnect
 
@@ -41,6 +42,7 @@ def authRedirect(request):
     if user_zerodha is None:
         user_zerodha = ZerodhaAccount(hstock_user=request.user)
     user_zerodha.access_token = zerodha_user_data['access_token']
+    user_zerodha.access_token_time = now()
     user_zerodha.refresh_token = zerodha_user_data['refresh_token']
     user_zerodha.public_token = zerodha_user_data['public_token']
     user_zerodha.api_key = zerodha_user_data['api_key']
