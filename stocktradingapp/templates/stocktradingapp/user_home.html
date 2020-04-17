@@ -1,6 +1,4 @@
 logged in as : {{request.user.username}}
-<br><br><br>
-<a href="{% url 'authZerodha' %}">Link Zerodha</a>
 <br><br>
 {% if user_zerodha %}
 <b>zerodha account linked:</b><br>
@@ -8,7 +6,14 @@ user id : {{user_zerodha.user_id}}<br>
 user name : {{user_zerodha.user_name}}<br>
 user shortname : {{user_zerodha.user_shortname}}<br>
 email : {{user_zerodha.email}}<br>
+{% if access_token_valid %}
+access token : <b>valid</b>
+{% else %}
+access_token : <b>Invalid</b>
+{% endif %}<br>
+<a href="{% url 'authZerodha' %}">Renew Token</a>
+{% else %}
+<a href="{% url 'authZerodha' %}">Link Zerodha</a>
 {% endif %}
-
-<br><br><br>
+<br><br>
 <a href="{% url 'logout' %}">Logout</a>

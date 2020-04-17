@@ -20,10 +20,18 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 @login_required
 def index(request):
+    user_zerodha = request.user.user_zerodha.first()
     context = {
-        'user_zerodha':request.user.user_zerodha.first()
+        'user_zerodha':user_zerodha,
+        'access_token_valid':validateAccessToken(user_zerodha.access_token_time)
     }
     return render(request, template_name='stocktradingapp/user_home.html', context=context)
+
+def validateAccessToken(access_token_time):
+    expiry_time = now().replace(hour=8, minute=30, second=0, microsecond=0)
+    if now() > expiry_time and access_token_time < expiry_time:
+        return False
+    return True
 
 @login_required
 def authZerodha(request):
@@ -62,7 +70,7 @@ def authRedirect(request):
 def zerodhaPostback(request):
     order_details = json.loads(request.body)
     if verifyCheckSum(order_details):
-        stocktrader.updateOrderFromPostback(order_details)
+        stocktrader.postback_queue.put(item=order_details, block=True)
     return HttpResponse('order details received.')
 
 def verifyCheckSum(order_details):

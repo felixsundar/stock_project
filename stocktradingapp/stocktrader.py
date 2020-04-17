@@ -2,7 +2,7 @@ import logging
 import queue
 import threading
 from datetime import datetime
-from queue import PriorityQueue
+from queue import PriorityQueue, Queue
 from time import sleep
 
 import pytz
@@ -40,6 +40,7 @@ token_trigger_prices = {} # for each token
 token_mis_margins = {} # for each token
 token_co_margins = {} # for each token
 token_co_upper_trigger = {} # for each token
+postback_queue = Queue(maxsize=500)
 order_variety = 'co'
 entry_time_limit = datetime.now().time().replace(hour=15, minute=18, second=0, microsecond=0)
 
@@ -48,6 +49,7 @@ def analyzeTicks(tick_queue):
         return
     updateTriggerRangesInDB()
     setupTokenInfoMap()
+    startPostbackProcessingThread()
     printInitialValues()
     schedule.every().day.at('15:19').do(exitAllPositions)
     while True:
@@ -78,11 +80,11 @@ def setupTradingThreads():
         user_zerodha.fund_available = fund_available
         user_zerodha.save()
 
-        signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=5)
+        signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
         pending_orders[user_zerodha.user_id] = []
 
         trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id,),
-                                          name=user_zerodha.user_id+'_trader')
+                                          name=user_zerodha.user_id+'_trader_thread')
         trading_thread.start()
 
     return zerodha_present
@@ -123,6 +125,10 @@ def setupTokenInfoMap():
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
+
+def startPostbackProcessingThread():
+    postback_processing_thread = threading.Thread(target=updateOrderFromPostback, daemon=True, name='postback_processing_thread')
+    postback_processing_thread.start()
 
 def printInitialValues():
     logging.debug('\n\ncurrent Positions - {}\n\n'.format(current_positions))
@@ -251,24 +257,26 @@ def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
     trigger_price = current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 1.5) / 100.0))
     return float('{:.1f}'.format(trigger_price))
 
-def updateOrderFromPostback(order_details):
-    sleep(0.5) # postback may be received instantly after placing order. wait till order id is entered in the pending orders list
-    pending_order = getPendingOrder(order_details)
-    if pending_order is None:
-        return
-    if order_details['status'] == STATUS_CANCELLED:
-        pending_orders[order_details['user_id']].remove(pending_order)
-    elif order_details['status'] == STATUS_REJECTED:
-        pending_orders[order_details['user_id']].remove(pending_order)
-        global order_variety
-        order_variety = 'regular'
-    elif order_details['status'] == STATUS_COMPLETE:
-        updateFundAvailable(order_details['user_id'])
-        if pending_order['enter_or_exit'] == 1:
-            updateEntryOrderComplete(order_details)
-        else:
-            updateExitOrderComplete(order_details)
-        pending_orders[order_details['user_id']].remove(pending_order)
+def updateOrderFromPostback():
+    while True:
+        order_details = postback_queue.get(block=True)
+        sleep(0.3) #postback maybe received instantly after placing order. so wait till order id is added to pending orders list
+        pending_order = getPendingOrder(order_details)
+        if pending_order is None:
+            continue
+        if order_details['status'] == STATUS_CANCELLED:
+            pending_orders[order_details['user_id']].remove(pending_order)
+        elif order_details['status'] == STATUS_REJECTED:
+            pending_orders[order_details['user_id']].remove(pending_order)
+            global order_variety
+            order_variety = 'regular'
+        elif order_details['status'] == STATUS_COMPLETE:
+            updateFundAvailable(order_details['user_id'])
+            if pending_order['enter_or_exit'] == 1:
+                updateEntryOrderComplete(order_details)
+            else:
+                updateExitOrderComplete(order_details)
+            pending_orders[order_details['user_id']].remove(pending_order)
 
 def getPendingOrder(order_details):
     user_pending_orders = pending_orders[order_details['user_id']]
