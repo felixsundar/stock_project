@@ -5,7 +5,6 @@ from datetime import datetime
 from queue import PriorityQueue, Queue
 from time import sleep
 
-import pytz
 import requests
 import schedule
 from django.utils.timezone import now
@@ -33,7 +32,10 @@ current_positions = {} # {'instrument_token1': [],
                        # } for each token
 user_kites = {} # for each user
 pending_orders = {} # for each user {userid1:[], userid2:[], userid3:[{enter_or_exit:1, orderid:32435, instrument_token:xx}]}
-funds_available = {} # for each user
+initial_funds_available = {} # for each user
+live_funds_available = {} # for each user
+user_net_value = {} # for each user
+user_stoploss = {} # for each user
 signal_queues = {} # for each user
 token_symbols = {} # for each token
 token_trigger_prices = {} # for each token
@@ -42,7 +44,8 @@ token_co_margins = {} # for each token
 token_co_upper_trigger = {} # for each token
 postback_queue = Queue(maxsize=500)
 order_variety = 'co'
-entry_time_limit = datetime.now().time().replace(hour=15, minute=18, second=0, microsecond=0)
+entry_time_start = now().time().replace(hour=9, minute=15, second=4, microsecond=0)
+entry_time_end = now().time().replace(hour=15, minute=18, second=0, microsecond=0)
 
 def analyzeTicks(tick_queue):
     if not setupTradingThreads():
@@ -77,6 +80,9 @@ def setupTradingThreads():
         user_kites[user_zerodha.user_id] = kite
 
         fund_available = updateFundAvailable(user_zerodha.user_id)
+        initial_funds_available[user_zerodha.user_id] = fund_available
+        user_net_value[user_zerodha.user_id] = fund_available
+        user_stoploss[user_zerodha.user_id] = fund_available * 0.95
         user_zerodha.fund_available = fund_available
         user_zerodha.save()
 
@@ -98,7 +104,7 @@ def validateAccessToken(access_token_time):
 def updateFundAvailable(zerodha_user_id):
     margin = user_kites[zerodha_user_id].margins()
     fund_available = margin['equity']['available']['live_balance']
-    funds_available[zerodha_user_id] = fund_available
+    live_funds_available[zerodha_user_id] = fund_available
     return fund_available
 
 def updateTriggerRangesInDB():
@@ -133,7 +139,7 @@ def startPostbackProcessingThread():
 def printInitialValues():
     logging.debug('\n\ncurrent Positions - {}\n\n'.format(current_positions))
     logging.debug('\n\npending orders - {}\n\n'.format(pending_orders))
-    logging.debug('\n\nfunds available - {}\n\n'.format(funds_available))
+    logging.debug('\n\nfunds available - {}\n\n'.format(live_funds_available))
     logging.debug('\n\nsignal queues - {}\n\n'.format(signal_queues))
     logging.debug('\n\ntoken symbols - {}\n\n'.format(token_symbols))
     logging.debug('\n\ntoken trigger prices - {}\n\n'.format(token_trigger_prices))
@@ -194,7 +200,8 @@ def tradeExecutor(zerodha_user_id):
             # price = limit price
             # validity = DAY, IOC # use day always
             # disclosed quantity = within 10 to 100 % of quantity. # set this same as quantity
-            # trigger price = entry trigger price
+            # trigger price = entry trigger price or trigger price for bo/co exit.
+            # bo/co doesn't support SL order_type. so this will be exit trigger in that case.
             # squareoff = target profit to exit. Profit amount in Rupees
             # stoploss = loss amount in Rupees to exit
             # trailing_stoploss = moving stoploss
@@ -205,12 +212,16 @@ def verifyEntryCondition(zerodha_user_id, instrument_token):
     for position in current_positions_for_token:
         if position['user_id'] == zerodha_user_id:
             return False
-    if datetime.now(tz=pytz.timezone(settings.TIME_ZONE)).time() > entry_time_limit:
+    current_time = now().time()
+    if current_time > entry_time_end or current_time < entry_time_start or \
+            user_net_value[zerodha_user_id] <= user_stoploss[zerodha_user_id] or pending_orders[zerodha_user_id]:
         return False
-    return False if pending_orders[zerodha_user_id] else True
+    return True
 
 def placeEntryOrder(zerodha_user_id, kite, signal):
     quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
+    if quantity == 0:
+        return
     if variety == 'co': #place co order
         trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
@@ -249,7 +260,7 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
         margin = token_co_margins[instrument_token]
     else:
         margin = token_mis_margins[instrument_token]
-    total_fund = margin * funds_available[zerodha_user_id]
+    total_fund = margin * live_funds_available[zerodha_user_id]
     quantity = total_fund//(current_price + 1) # 1 added to match the anticipated price increase in the time gap
     return (int(quantity), order_variety_local)
 
@@ -297,8 +308,14 @@ def updateExitOrderComplete(order_details):
     current_positions_for_instrument = current_positions[order_details['instrument_token']]
     for position in current_positions_for_instrument:
         if position['user_id'] == order_details['user_id']:
+            updateUserNetValue(position['user_id'], position, order_details['average_price'])
             current_positions_for_instrument.remove(position)
             return
+
+def updateUserNetValue(user_id, position, exit_price):
+    trade_profit = (position['entry_price'] - exit_price) * position['number_of_stocks']
+    user_net_value[user_id] += trade_profit
+    user_stoploss[user_id] = max(user_stoploss[user_id], 0.95 * user_net_value[user_id])
 
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]
