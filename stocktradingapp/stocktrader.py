@@ -22,6 +22,10 @@ STATUS_CANCELLED = 'CANCELLED'
 STATUS_REJECTED = 'REJECTED'
 CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
+MAX_RISK_PERCENT_PER_TRADE = 0.5
+MAX_INVESTMENT_PER_POSITION = 200000.0
+MIN_INVESTMENT_PER_POSITION = 3000.0
+POSITION_STOPLOSS = 0.5
 
 current_positions = {} # {'instrument_token1': [],
                        #  'instrument_token2': [],
@@ -36,6 +40,7 @@ initial_funds_available = {} # for each user
 live_funds_available = {} # for each user
 user_net_value = {} # for each user
 user_stoploss = {} # for each user
+user_amount_at_risk = {} # for each user
 signal_queues = {} # for each user
 token_symbols = {} # for each token
 token_trigger_prices = {} # for each token
@@ -83,6 +88,7 @@ def setupTradingThreads():
         initial_funds_available[user_zerodha.user_id] = fund_available
         user_net_value[user_zerodha.user_id] = fund_available
         user_stoploss[user_zerodha.user_id] = fund_available * 0.95
+        user_amount_at_risk[user_zerodha.user_id] = 0.0
         user_zerodha.fund_available = fund_available
         user_zerodha.save()
 
@@ -260,8 +266,13 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
         margin = token_co_margins[instrument_token]
     else:
         margin = token_mis_margins[instrument_token]
-    total_fund = margin * live_funds_available[zerodha_user_id]
-    quantity = total_fund//(current_price + 1) # 1 added to match the anticipated price increase in the time gap
+    riskable_amount = min(MAX_RISK_PERCENT_PER_TRADE * user_net_value[zerodha_user_id] / 100,
+                          user_net_value[zerodha_user_id] - user_amount_at_risk[zerodha_user_id] - user_stoploss[zerodha_user_id])
+    if riskable_amount <= 0:
+        return (0, order_variety_local)
+    investment_for_riskable_amount = riskable_amount * 100 / POSITION_STOPLOSS # riskable_amount = 0.5% then ? = 100%...
+    amount_to_invest = min(investment_for_riskable_amount, live_funds_available[zerodha_user_id] * margin, MAX_INVESTMENT_PER_POSITION)
+    quantity = amount_to_invest // (current_price + 1) if amount_to_invest > MIN_INVESTMENT_PER_POSITION else 0 # 1 added to match the anticipated price increase in the time gap
     return (int(quantity), order_variety_local)
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
@@ -300,9 +311,13 @@ def updateEntryOrderComplete(order_details):
     if order_details['variety'] == CO_ORDER:
         second_leg_order_details = getSecondLegOrder(order_details)
         new_position = constructNewPosition(order_details, second_leg_order_details)
+        updateAmountAtRisk(order_details['user_id'], order_details['average_price'], order_details['filled_quantity'])
     else:
         new_position = constructNewPosition(order_details)
     current_positions[order_details['instrument_token']].append(new_position)
+
+def updateAmountAtRisk(zerodha_user_id, price, number_of_stocks):
+    user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] + (price * number_of_stocks * POSITION_STOPLOSS / 100.0)
 
 def updateExitOrderComplete(order_details):
     current_positions_for_instrument = current_positions[order_details['instrument_token']]
