@@ -15,7 +15,6 @@ from stocktradingapp.models import Stock, ZerodhaAccount
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 # CONSTANTS
-# enter_or_exit: 1 - enter, 0 - exit
 ENTER = 1
 EXIT = 0
 STATUS_COMPLETE = 'COMPLETE'
@@ -23,32 +22,48 @@ STATUS_CANCELLED = 'CANCELLED'
 STATUS_REJECTED = 'REJECTED'
 CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
-MAX_RISK_PERCENT_PER_TRADE = 0.5
-MAX_INVESTMENT_PER_POSITION = 200000.0
-MIN_INVESTMENT_PER_POSITION = 3000.0
-POSITION_STOPLOSS = 0.5
-USER_STOPLOSS_PERCENT = 5
 
+#PARAMETERS
+MAX_RISK_PERCENT_PER_TRADE = settings.MAX_RISK_PERCENT_PER_TRADE
+MAX_INVESTMENT_PER_POSITION = settings.MAX_INVESTMENT_PER_POSITION
+MIN_INVESTMENT_PER_POSITION = settings.MIN_INVESTMENT_PER_POSITION
+
+POSITION_STOPLOSS_PERCENT = settings.POSITION_STOPLOSS_PERCENT
+POSITION_TARGET_STOPLOSS = settings.POSITION_TARGET_STOPLOSS
+POSITION_STOPLOSS_RANGE = POSITION_STOPLOSS_PERCENT - POSITION_TARGET_STOPLOSS
+POSITION_TARGET_PERCENT = settings.POSITION_TARGET_PERCENT
+
+USER_STOPLOSS_PERCENT = settings.USER_STOPLOSS_PERCENT
+USER_TARGET_STOPLOSS = settings.USER_TARGET_STOPLOSS
+USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
+USER_TARGET_PERCENT = settings.USER_TARGET_PERCENT
+
+# FOR EACH TOKEN
+token_symbols = {}
+token_trigger_prices = {}
+token_mis_margins = {}
+token_co_margins = {}
+token_co_upper_trigger = {}
 current_positions = {} # {'instrument_token1': [],
                        #  'instrument_token2': [],
                        #  'instrument_token3': [{position1},
                        #                        {position2},
                        #                        {'user_id', 'number_of_stocks', 'variety', 'entry_price':45.8, 'stoploss':47.4}
                        #                       ]
-                       # } for each token
-user_kites = {} # for each user
-pending_orders = {} # for each user {userid1:[], userid2:[], userid3:[{enter_or_exit:1, orderid:32435, instrument_token:xx}]}
-initial_funds_available = {} # for each user
-live_funds_available = {} # for each user
-user_net_value = {} # for each user
-user_stoploss = {} # for each user
-user_amount_at_risk = {} # for each user
-signal_queues = {} # for each user
-token_symbols = {} # for each token
-token_trigger_prices = {} # for each token
-token_mis_margins = {} # for each token
-token_co_margins = {} # for each token
-token_co_upper_trigger = {} # for each token
+                       # }
+
+# FOR EACH USER
+user_kites = {}
+pending_orders = {} # {userid1:[], userid2:[], userid3:[{enter_or_exit:1, orderid:32435, instrument_token:xx}]}
+user_initial_value = {}
+live_funds_available = {}
+user_net_value = {}
+user_target_value = {}
+user_stoploss = {}
+user_amount_at_risk = {}
+signal_queues = {}
+
+# OTHER GLOBALS
 postback_queue = Queue(maxsize=500)
 order_variety = CO_ORDER
 entry_time_start = now().time().replace(hour=9, minute=15, second=4, microsecond=0)
@@ -58,7 +73,8 @@ def analyzeTicks(tick_queue):
     if not setupTradingThreads():
         return
     updateTriggerRangesInDB()
-    setupTokenInfoMap()
+    setupTokenMaps()
+    setupConstants()
     startPostbackProcessingThread()
     printInitialValues()
     schedule.every().day.at('15:19').do(exitAllPositions)
@@ -82,26 +98,27 @@ def setupTradingThreads():
         zerodha_present = True
         if not validateAccessToken(user_zerodha.access_token_time):
             continue
-        kite = KiteConnect(user_zerodha.api_key)
-        kite.set_access_token(user_zerodha.access_token)
-        user_kites[user_zerodha.user_id] = kite
-
-        fund_available = updateFundAvailable(user_zerodha.user_id)
-        initial_funds_available[user_zerodha.user_id] = fund_available
-        user_net_value[user_zerodha.user_id] = fund_available
-        user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) / 100.0 * fund_available
-        user_amount_at_risk[user_zerodha.user_id] = 0.0
-        user_zerodha.fund_available = fund_available
-        user_zerodha.save()
-
-        signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
-        pending_orders[user_zerodha.user_id] = []
-
+        setupUserMaps(user_zerodha)
         trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id,),
-                                          name=user_zerodha.user_id+'_trader_thread')
+                                          name=user_zerodha.user_id + '_trader_thread')
         trading_thread.start()
-
     return zerodha_present
+
+def setupUserMaps(user_zerodha):
+    kite = KiteConnect(user_zerodha.api_key)
+    kite.set_access_token(user_zerodha.access_token)
+    updateFundAvailable(user_zerodha.user_id)
+    user_zerodha.fund_available = live_funds_available[user_zerodha.user_id]
+    user_zerodha.save()
+
+    user_kites[user_zerodha.user_id] = kite
+    user_initial_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
+    user_target_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id] * (100.0 + USER_TARGET_PERCENT) / 100.0
+    user_net_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
+    user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) / 100.0 * live_funds_available[user_zerodha.user_id]
+    user_amount_at_risk[user_zerodha.user_id] = 0.0
+    signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
+    pending_orders[user_zerodha.user_id] = []
 
 def validateAccessToken(access_token_time):
     expiry_time = now().replace(hour=8, minute=30, second=0, microsecond=0)
@@ -111,9 +128,7 @@ def validateAccessToken(access_token_time):
 
 def updateFundAvailable(zerodha_user_id):
     margin = user_kites[zerodha_user_id].margins()
-    fund_available = margin['equity']['available']['live_balance']
-    live_funds_available[zerodha_user_id] = fund_available
-    return fund_available
+    live_funds_available[zerodha_user_id] = margin['equity']['available']['live_balance']
 
 def updateTriggerRangesInDB():
     trigger_ranges_response = requests.get(url=settings.TRIGGER_RANGE_URL)
@@ -130,7 +145,7 @@ def updateTriggerRangesInDB():
             stock.mis_margin = instrument['mis_multiplier']
             stock.save()
 
-def setupTokenInfoMap():
+def setupTokenMaps():
     stocks = Stock.objects.filter(active=True)
     for stock in stocks:
         current_positions[stock.instrument_token] = []
@@ -139,6 +154,11 @@ def setupTokenInfoMap():
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
+
+def setupConstants():
+    global POSITION_STOPLOSS_RANGE, USER_STOPLOSS_RANGE
+    POSITION_STOPLOSS_RANGE = POSITION_STOPLOSS_PERCENT - POSITION_TARGET_STOPLOSS
+    USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
 
 def startPostbackProcessingThread():
     postback_processing_thread = threading.Thread(target=updateOrderFromPostback, daemon=True, name='postback_processing_thread')
@@ -158,10 +178,10 @@ def printInitialValues():
 def checkEntryTrigger(instrument_token, current_price):
     trigger_price = token_trigger_prices[instrument_token]
     if current_price < trigger_price:  # entry trigger breached
-        token_trigger_prices[instrument_token] = current_price * (100 - POSITION_STOPLOSS) / 100
+        token_trigger_prices[instrument_token] = current_price * (100.0 - POSITION_STOPLOSS_PERCENT) / 100.0
         sendSignal(ENTER, instrument_token, current_price)
     else:  # update entry trigger
-        token_trigger_prices[instrument_token] = max(trigger_price, current_price * (100 - POSITION_STOPLOSS) / 100)
+        token_trigger_prices[instrument_token] = max(trigger_price, current_price * (100.0 - POSITION_STOPLOSS_PERCENT) / 100.0)
 
 def checkStoploss(instrument_token, current_price):
     current_positions_for_token = current_positions[instrument_token]
@@ -169,18 +189,23 @@ def checkStoploss(instrument_token, current_price):
         if current_price >= position['stoploss']: # stoploss breached
             sendSignal(EXIT, instrument_token, position)
         else:  # update stoploss
-            position['stoploss'] = min(position['stoploss'], current_price * (1 + POSITION_STOPLOSS / 100.0))
+            position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))
+
+def updatePositionStoploss(position, current_price):
+    remaining_target = current_price - position['target_price'] if current_price > position['target_price'] else 0
+    return current_price + \
+           (remaining_target * position['slrange_tprofit_ratio'] + POSITION_TARGET_STOPLOSS) * position['one_percent_entry_price']
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
         for signal_queue in signal_queues.values():
             try:
-                signal_queue.put_nowait((enter_or_exit, instrument_token, currentPrice_or_currentPosition))
+                signal_queue.put_nowait((ENTER, instrument_token, currentPrice_or_currentPosition))
             except queue.Full:
                 pass
     else:
         signal_queue = signal_queues[currentPrice_or_currentPosition['user_id']]
-        signal_queue.put((enter_or_exit, instrument_token, currentPrice_or_currentPosition), block=True)
+        signal_queue.put((EXIT, instrument_token, currentPrice_or_currentPosition), block=True)
 
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
@@ -197,23 +222,6 @@ def tradeExecutor(zerodha_user_id):
         except Exception as e:
             logging.debug('Exception while placing order for user - {}\n'
                           'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
-
-            # variety = regular, amo, bo, co
-            # exchange = NSE, BSE
-            # tradingsymbol = IRCTC, SBICARD, etc..
-            # transaction_type = BUY, SELL
-            # quantity = number of stocks
-            # product = CNC, MIS
-            # order_type = MARKET, LIMIT, SL, SL-M
-            # price = limit price
-            # validity = DAY, IOC # use day always
-            # disclosed quantity = within 10 to 100 % of quantity. # set this same as quantity
-            # trigger price = entry trigger price or trigger price for bo/co exit.
-            # bo/co doesn't support SL order_type. so this will be exit trigger in that case.
-            # squareoff = target profit to exit. Profit amount in Rupees
-            # stoploss = loss amount in Rupees to exit
-            # trailing_stoploss = moving stoploss
-            # tag = random alphanumeric id attached to the order
 
 def verifyEntryCondition(zerodha_user_id, instrument_token):
     current_positions_for_token = current_positions[instrument_token]
@@ -258,8 +266,8 @@ def placeExitOrder(kite, instrument_token, position):
         order_id = kite.cancel_order(variety=CO_ORDER, order_id=position['order_id'], parent_order_id=position['parent_order_id'])
     else:
         order_id = kite.place_order(variety=position['variety'], exchange='NSE', tradingsymbol=token_symbols[instrument_token],
-                                    transaction_type='BUY', quantity=position['number_of_stocks'], product='MIS',
-                                    order_type='MARKET', validity='DAY', disclosed_quantity=position['number_of_stocks'])
+                                    transaction_type='BUY', quantity=position['number_of_stocks'], order_type='MARKET',
+                                    product='MIS', validity='DAY', disclosed_quantity=position['number_of_stocks'])
     pending_orders[position['user_id']].append({'enter_or_exit':EXIT, 'order_id':order_id, 'instrument_token':instrument_token})
 
 def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_price):
@@ -268,23 +276,23 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
         margin = token_co_margins[instrument_token]
     else:
         margin = token_mis_margins[instrument_token]
-    riskable_amount = min(MAX_RISK_PERCENT_PER_TRADE * user_net_value[zerodha_user_id] / 100,
+    riskable_amount = min(MAX_RISK_PERCENT_PER_TRADE * user_net_value[zerodha_user_id] / 100.0,
                           user_net_value[zerodha_user_id] - user_amount_at_risk[zerodha_user_id] - user_stoploss[zerodha_user_id])
     if riskable_amount <= 0:
         return (0, order_variety_local)
-    investment_for_riskable_amount = riskable_amount * 100 / POSITION_STOPLOSS # riskable_amount = 0.5% then ? = 100%...
+    investment_for_riskable_amount = riskable_amount * 100.0 / POSITION_STOPLOSS_PERCENT # riskable_amount = 0.5% then ? = 100%...
     amount_to_invest = min(investment_for_riskable_amount, live_funds_available[zerodha_user_id] * margin, MAX_INVESTMENT_PER_POSITION)
     quantity = amount_to_invest // (current_price + 1) if amount_to_invest > MIN_INVESTMENT_PER_POSITION else 0 # 1 added to match the anticipated price increase in the time gap
     return (int(quantity), order_variety_local)
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
-    trigger_price = current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 2.0) / 100.0))
+    trigger_price = current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 2.5) / 100.0))
     return float('{:.1f}'.format(trigger_price))
 
 def updateOrderFromPostback():
     while True:
         order_details = postback_queue.get(block=True)
-        sleep(0.3) #postback maybe received instantly after placing order. so wait till order id is added to pending orders list
+        sleep(0.3) # postback maybe received instantly after placing order. so wait till order id is added to pending orders list
         pending_order = getPendingOrder(order_details)
         if pending_order is None:
             continue
@@ -320,9 +328,9 @@ def updateEntryOrderComplete(order_details):
 
 def updateAmountAtRisk(enter_or_exit, zerodha_user_id, price, number_of_stocks):
     if enter_or_exit == ENTER:
-        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] + (price * number_of_stocks * POSITION_STOPLOSS / 100.0)
+        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] + (price * number_of_stocks * POSITION_STOPLOSS_PERCENT / 100.0)
     else:
-        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] - (price * number_of_stocks * POSITION_STOPLOSS / 100.0)
+        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] - (price * number_of_stocks * POSITION_STOPLOSS_PERCENT / 100.0)
 
 def updateExitOrderComplete(order_details):
     current_positions_for_instrument = current_positions[order_details['instrument_token']]
@@ -336,7 +344,11 @@ def updateExitOrderComplete(order_details):
 def updateUserNetValue(user_id, position, exit_price):
     trade_profit = (position['entry_price'] - exit_price) * position['number_of_stocks']
     user_net_value[user_id] += trade_profit
-    user_stoploss[user_id] = max(user_stoploss[user_id], user_net_value[user_id] * (100 - USER_STOPLOSS_PERCENT) / 100.0)
+    user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
+
+def updateUserStoploss(user_id):
+    remaining_target = user_target_value[user_id] - user_net_value[user_id] if user_target_value[user_id] > user_net_value[user_id] else 0
+    return user_net_value[user_id] - (remaining_target * USER_STOPLOSS_RANGE / (user_target_value[user_id] - user_initial_value[user_id]) + USER_TARGET_STOPLOSS) * user_initial_value[user_id] / 100.0
 
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]
@@ -352,7 +364,10 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['variety'] = order_details['variety']
     new_position['number_of_stocks'] = order_details['filled_quantity']
     new_position['entry_price'] = order_details['average_price']
-    new_position['stoploss'] = order_details['average_price'] + order_details['average_price'] * POSITION_STOPLOSS / 100.0
+    new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
+    new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
+    new_position['slrange_tprofit_ratio'] = POSITION_STOPLOSS_RANGE / (new_position['entry_price'] - new_position['target_price'])
+    new_position['one_percent_entry_price'] = new_position['entry_price'] / 100.0
     if second_leg_order_details:
         new_position['order_id'] = second_leg_order_details['order_id']
         new_position['parent_order_id'] = second_leg_order_details['parent_order_id']
@@ -361,4 +376,4 @@ def constructNewPosition(order_details, second_leg_order_details=None):
 def exitAllPositions():
     for instrument_token in current_positions.keys():
         for position in current_positions[instrument_token]:
-            sendSignal(0, instrument_token, position)
+            sendSignal(EXIT, instrument_token, position)
