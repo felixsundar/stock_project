@@ -10,7 +10,7 @@ from django.utils.timezone import now
 from kiteconnect import KiteConnect
 
 from stock_project import settings
-from stocktradingapp.models import Stock, ZerodhaAccount
+from stocktradingapp.models import Stock, ZerodhaAccount, Controls
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
@@ -23,7 +23,7 @@ STATUS_REJECTED = 'REJECTED'
 CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
 
-#PARAMETERS
+# PARAMETERS
 MAX_RISK_PERCENT_PER_TRADE = settings.MAX_RISK_PERCENT_PER_TRADE
 MAX_INVESTMENT_PER_POSITION = settings.MAX_INVESTMENT_PER_POSITION
 MIN_INVESTMENT_PER_POSITION = settings.MIN_INVESTMENT_PER_POSITION
@@ -37,6 +37,11 @@ USER_STOPLOSS_PERCENT = settings.USER_STOPLOSS_PERCENT
 USER_TARGET_STOPLOSS = settings.USER_TARGET_STOPLOSS
 USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
 USER_TARGET_PERCENT = settings.USER_TARGET_PERCENT
+
+ENTRY_TIME_START = now().time().replace(hour=settings.ENTRY_TIME_START[0], minute=settings.ENTRY_TIME_START[1],
+                                        second=settings.ENTRY_TIME_START[2])
+ENTRY_TIME_END = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
+                                      second=settings.ENTRY_TIME_END[2])
 
 # FOR EACH TOKEN
 token_symbols = {}
@@ -66,18 +71,16 @@ signal_queues = {}
 # OTHER GLOBALS
 postback_queue = Queue(maxsize=500)
 order_variety = CO_ORDER
-entry_time_start = now().time().replace(hour=9, minute=15, second=4, microsecond=0)
-entry_time_end = now().time().replace(hour=15, minute=18, second=0, microsecond=0)
 
 def analyzeTicks(tick_queue):
     if not setupTradingThreads():
         return
     updateTriggerRangesInDB()
     setupTokenMaps()
-    setupConstants()
+    setupParameters()
     startPostbackProcessingThread()
     printInitialValues()
-    schedule.every().day.at('15:19').do(exitAllPositions)
+    schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
             tick = tick_queue.get(True)
@@ -155,10 +158,11 @@ def setupTokenMaps():
         token_co_margins[stock.instrument_token] = stock.co_margin
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
-def setupConstants():
+def setupParameters():
     global POSITION_STOPLOSS_RANGE, USER_STOPLOSS_RANGE
     POSITION_STOPLOSS_RANGE = POSITION_STOPLOSS_PERCENT - POSITION_TARGET_STOPLOSS
     USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
+    pass
 
 def startPostbackProcessingThread():
     postback_processing_thread = threading.Thread(target=updateOrderFromPostback, daemon=True, name='postback_processing_thread')
@@ -229,7 +233,7 @@ def verifyEntryCondition(zerodha_user_id, instrument_token):
         if position['user_id'] == zerodha_user_id:
             return False
     current_time = now().time()
-    if current_time > entry_time_end or current_time < entry_time_start or \
+    if current_time > ENTRY_TIME_END or current_time < ENTRY_TIME_START or \
             user_net_value[zerodha_user_id] <= user_stoploss[zerodha_user_id] or pending_orders[zerodha_user_id]:
         return False
     return True
@@ -372,6 +376,19 @@ def constructNewPosition(order_details, second_leg_order_details=None):
         new_position['order_id'] = second_leg_order_details['order_id']
         new_position['parent_order_id'] = second_leg_order_details['parent_order_id']
     return new_position
+
+def scheduleExit():
+    global ENTRY_TIME_END
+    try:
+        controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
+        ENTRY_TIME_END = controls.entry_time_end.time()
+        exit_time = controls.exit_time.time()
+    except Exception as e:
+        ENTRY_TIME_END = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
+                                              second=settings.ENTRY_TIME_END[2])
+        exit_time =  now().time().replace(hour=settings.EXIT_TIME[0], minute=settings.EXIT_TIME[1])
+    exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
+    schedule.every().day.at(exit_time_str).do(exitAllPositions)
 
 def exitAllPositions():
     for instrument_token in current_positions.keys():

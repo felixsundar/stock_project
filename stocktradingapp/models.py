@@ -38,3 +38,18 @@ class Stock(models.Model):
     co_trigger_percent_lower = models.FloatField()
     co_trigger_percent_upper = models.FloatField()
     active = models.BooleanField()
+
+class Controls(models.Model):
+    control_id = models.CharField(max_length=40, primary_key=True)
+    max_risk_percent_per_trade = models.FloatField(help_text='default: 0.5')
+    max_investment_per_position = models.FloatField(help_text='default: 300000.0')
+    min_investment_per_position = models.FloatField(help_text='default: 1000.0')
+    position_stoploss_percent = models.FloatField(help_text='default: 0.5')
+    position_target_stoploss = models.FloatField(help_text='default: 0.1')
+    position_target_percent = models.FloatField(help_text='default: 1.0')
+    user_stoploss_percent = models.FloatField(help_text='default: 5.0')
+    user_target_stoploss = models.FloatField(help_text='default: 1.0')
+    user_target_percent = models.FloatField(help_text='default: 10.0')
+    entry_time_start = models.DateTimeField(help_text='default: 9:15:04')
+    entry_time_end = models.DateTimeField(help_text='default: 15:18:00')
+    exit_time = models.DateTimeField(help_text='default: 15:19:00')
