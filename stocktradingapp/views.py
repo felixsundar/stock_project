@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from kiteconnect import KiteConnect
 
 from stock_project import settings
-from stocktradingapp import stocktrader
+from stocktradingapp import stocktradershort
 from stocktradingapp.models import ZerodhaAccount
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -70,7 +70,7 @@ def authRedirect(request):
 def zerodhaPostback(request):
     order_details = json.loads(request.body)
     if verifyCheckSum(order_details):
-        stocktrader.postback_queue.put(item=order_details, block=True)
+        stocktradershort.postback_queue.put(item=order_details, block=True)
     return HttpResponse('order details received.')
 
 def verifyCheckSum(order_details):

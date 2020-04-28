@@ -49,13 +49,7 @@ token_trigger_prices = {}
 token_mis_margins = {}
 token_co_margins = {}
 token_co_upper_trigger = {}
-current_positions = {} # {'instrument_token1': [],
-                       #  'instrument_token2': [],
-                       #  'instrument_token3': [{position1},
-                       #                        {position2},
-                       #                        {'user_id', 'number_of_stocks', 'variety', 'entry_price':45.8, 'stoploss':47.4}
-                       #                       ]
-                       # }
+current_positions = {}
 
 # FOR EACH USER
 user_kites = {}
@@ -79,7 +73,7 @@ def analyzeTicks(tick_queue):
     setupTokenMaps()
     setupParameters()
     startPostbackProcessingThread()
-    printInitialValues()
+    logging.debug('stocktrader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
@@ -159,25 +153,32 @@ def setupTokenMaps():
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
 def setupParameters():
-    global POSITION_STOPLOSS_RANGE, USER_STOPLOSS_RANGE
-    POSITION_STOPLOSS_RANGE = POSITION_STOPLOSS_PERCENT - POSITION_TARGET_STOPLOSS
-    USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
-    pass
+    global MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION,\
+        POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_STOPLOSS_RANGE, POSITION_TARGET_PERCENT,\
+        USER_STOPLOSS_PERCENT, USER_TARGET_STOPLOSS, USER_STOPLOSS_RANGE, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END
+    try:
+        controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
+        MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
+        MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
+        MIN_INVESTMENT_PER_POSITION = controls.min_investment_per_position
+
+        POSITION_STOPLOSS_PERCENT = controls.position_stoploss_percent
+        POSITION_TARGET_STOPLOSS = controls.position_target_stoploss
+        POSITION_STOPLOSS_RANGE = POSITION_STOPLOSS_PERCENT - POSITION_TARGET_STOPLOSS
+        POSITION_TARGET_PERCENT = controls.position_target_percent
+
+        USER_STOPLOSS_PERCENT = controls.user_stoploss_percent
+        USER_TARGET_STOPLOSS = controls.user_target_stoploss
+        USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
+        USER_TARGET_PERCENT = controls.user_target_percent
+        ENTRY_TIME_START = controls.entry_time_start.time()
+        ENTRY_TIME_END = controls.entry_time_end.time()
+    except Exception as e:
+        pass
 
 def startPostbackProcessingThread():
     postback_processing_thread = threading.Thread(target=updateOrderFromPostback, daemon=True, name='postback_processing_thread')
     postback_processing_thread.start()
-
-def printInitialValues():
-    logging.debug('\n\ncurrent Positions - {}\n\n'.format(current_positions))
-    logging.debug('\n\npending orders - {}\n\n'.format(pending_orders))
-    logging.debug('\n\nfunds available - {}\n\n'.format(live_funds_available))
-    logging.debug('\n\nsignal queues - {}\n\n'.format(signal_queues))
-    logging.debug('\n\ntoken symbols - {}\n\n'.format(token_symbols))
-    logging.debug('\n\ntoken trigger prices - {}\n\n'.format(token_trigger_prices))
-    logging.debug('\n\ntoken mis margins - {}\n\n'.format(token_mis_margins))
-    logging.debug('\n\ntoken co margins - {}\n\n'.format(token_co_margins))
-    logging.debug('\n\ntoken co upper trigger - {}\n\n'.format(token_co_upper_trigger))
 
 def checkEntryTrigger(instrument_token, current_price):
     trigger_price = token_trigger_prices[instrument_token]
@@ -247,15 +248,10 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
                                     transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
                                     validity='DAY', disclosed_quantity=quantity, trigger_price=trigger_price)
-        logging.debug('CO ENTRY ORDER PLACED for zerodha user - {}\nInstrument token for entry - {}'
-                      '\nTrigger price for co order exit - {}'
-                      '\norder quantity - {}'.format(zerodha_user_id, signal[1], trigger_price, quantity))
     else: #place regular order(mis)
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
                                     transaction_type='SELL', quantity=quantity, product='MIS',
                                     order_type='MARKET', validity='DAY', disclosed_quantity=quantity)
-        logging.debug('REGULAR ENTRY ORDER PLACED for zerodha user - {}\nInstrument token for entry - {}'
-                      '\norder quantity - {}'.format(zerodha_user_id, signal[1], quantity))
     pending_orders[zerodha_user_id].append({'enter_or_exit':ENTER, 'order_id':order_id, 'instrument_token':signal[1]})
 
 def verifyExitCondition(instrument_token, position):

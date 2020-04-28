@@ -10,7 +10,7 @@ from django.utils.timezone import now
 from kiteconnect import KiteTicker
 
 from stock_project import settings
-from stocktradingapp import stocktrader
+from stocktradingapp import stocktradershort
 from stocktradingapp.models import Stock
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -37,7 +37,7 @@ def createWebSocketTicker():
     return KiteTicker(user_zerodha.api_key, user_zerodha.access_token)
 
 def startTickAnalyser(tick_queue):
-    traderThread = threading.Thread(target=stocktrader.analyzeTicks, args=(tick_queue,), daemon=True,
+    traderThread = threading.Thread(target=stocktradershort.analyzeTicks, args=(tick_queue,), daemon=True,
                                     name='stockTrader_thread')
     traderThread.start()
 
