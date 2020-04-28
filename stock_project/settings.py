@@ -164,6 +164,8 @@ ENTRY_TIME_START = (9, 15, 4)
 ENTRY_TIME_END = (15, 18, 0)
 EXIT_TIME = (15, 19) # schedule takes only hour and minute. not seconds
 
+TRADING_SIDE = 1 # 1 for short, 2 for long, 3 for no trading
+
 CONTROLS_RECORD_ID = 'master_controls'
 
 TRIGGER_RANGE_URL = 'https://api.kite.trade/margins/equity'

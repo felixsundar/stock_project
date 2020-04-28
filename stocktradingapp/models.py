@@ -53,3 +53,4 @@ class Controls(models.Model):
     entry_time_start = models.DateTimeField(help_text='default: 9:15:04')
     entry_time_end = models.DateTimeField(help_text='default: 15:18:00')
     exit_time = models.DateTimeField(help_text='default: 15:19:00')
+    trading_side = models.IntegerField(choices=[(1, 'Short Side'), (2, 'Long Side'), (3, 'Don\'t Trade')], default=1)

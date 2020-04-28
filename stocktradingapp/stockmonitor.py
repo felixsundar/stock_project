@@ -11,9 +11,13 @@ from kiteconnect import KiteTicker
 
 from stock_project import settings
 from stocktradingapp import stocktradershort
-from stocktradingapp.models import Stock
+from stocktradingapp.models import Stock, Controls
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
+
+SHORT_SIDE = 1
+LONG_SIDE = 2
+TRADING_SIDE = settings.TRADING_SIDE
 
 def runStockMonitor():
     # try:
@@ -22,12 +26,12 @@ def runStockMonitor():
     # except Exception as e:
     #     logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
     logging.debug('\n\n\n\nstock monitor thread started.\n\n\n\n')
+    tick_queue = Queue(maxsize=5)
     kws = createWebSocketTicker()
-    if kws:
-        tick_queue = Queue(maxsize=5)
-        startTickAnalyser(tick_queue)
-        sleep(5)
-        startWebSocketTicker(kws, tick_queue)
+    if not kws or not startStockTrader(tick_queue):
+        return
+    sleep(5)
+    startWebSocketTicker(kws, tick_queue)
 
 def createWebSocketTicker():
     user = User.objects.get_by_natural_key(settings.PRIMARY_USERNAME)
@@ -36,10 +40,24 @@ def createWebSocketTicker():
         return None
     return KiteTicker(user_zerodha.api_key, user_zerodha.access_token)
 
-def startTickAnalyser(tick_queue):
-    traderThread = threading.Thread(target=stocktradershort.analyzeTicks, args=(tick_queue,), daemon=True,
+def startStockTrader(tick_queue):
+    global TRADING_SIDE
+    try:
+        controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
+        TRADING_SIDE = controls.trading_side
+    except Exception as e:
+        pass
+    if TRADING_SIDE == SHORT_SIDE:
+        traderThread = threading.Thread(target=stocktradershort.analyzeTicks, args=(tick_queue,), daemon=True,
                                     name='stockTrader_thread')
-    traderThread.start()
+        traderThread.start()
+    elif TRADING_SIDE == LONG_SIDE:
+        traderThread = threading.Thread(target=stocktradershort.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='stockTrader_thread')
+        traderThread.start()
+    else:
+        return False # Don't do any trading
+    return True
 
 def startWebSocketTicker(kws, tick_queue):
     def on_ticks(ws, tick):
