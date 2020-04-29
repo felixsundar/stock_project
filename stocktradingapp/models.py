@@ -41,6 +41,7 @@ class Stock(models.Model):
 
 class Controls(models.Model):
     control_id = models.CharField(max_length=40, primary_key=True)
+    entry_trigger_percent = models.FloatField(help_text='default: 0.5')
     max_risk_percent_per_trade = models.FloatField(help_text='default: 0.5')
     max_investment_per_position = models.FloatField(help_text='default: 300000.0')
     min_investment_per_position = models.FloatField(help_text='default: 1000.0')

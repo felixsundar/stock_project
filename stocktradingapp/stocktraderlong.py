@@ -24,7 +24,7 @@ CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
 
 # PARAMETERS
-ENTRY_TRIGGER_TIMES = (100.0 - settings.ENTRY_TRIGGER_PERCENT) / 100.0
+ENTRY_TRIGGER_TIMES = (100.0 + settings.ENTRY_TRIGGER_PERCENT) / 100.0
 
 MAX_RISK_PERCENT_PER_TRADE = settings.MAX_RISK_PERCENT_PER_TRADE
 MAX_INVESTMENT_PER_POSITION = settings.MAX_INVESTMENT_PER_POSITION
@@ -50,7 +50,7 @@ token_symbols = {}
 token_trigger_prices = {}
 token_mis_margins = {}
 token_co_margins = {}
-token_co_upper_trigger = {}
+token_co_lower_trigger = {}
 current_positions = {}
 
 # FOR EACH USER
@@ -75,7 +75,7 @@ def analyzeTicks(tick_queue):
     setupTokenMaps()
     setupParameters()
     startPostbackProcessingThread()
-    logging.debug('short stocktrader thread started')
+    logging.debug('long stocktrader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
@@ -149,10 +149,10 @@ def setupTokenMaps():
     for stock in stocks:
         current_positions[stock.instrument_token] = []
         token_symbols[stock.instrument_token] = stock.trading_symbol
-        token_trigger_prices[stock.instrument_token] = 0.0 # initial trigger price
+        token_trigger_prices[stock.instrument_token] = 99999999.0 # initial trigger price
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
-        token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
+        token_co_lower_trigger[stock.instrument_token] = stock.co_trigger_percent_lower
 
 def setupParameters():
     global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION,\
@@ -160,7 +160,7 @@ def setupParameters():
         USER_STOPLOSS_PERCENT, USER_TARGET_STOPLOSS, USER_STOPLOSS_RANGE, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
-        ENTRY_TRIGGER_TIMES = (100.0 - controls.entry_trigger_percent) / 100.0
+        ENTRY_TRIGGER_TIMES = (100.0 + controls.entry_trigger_percent) / 100.0
 
         MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
         MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
@@ -185,15 +185,15 @@ def startPostbackProcessingThread():
     postback_processing_thread.start()
 
 def checkEntryTrigger(instrument_token, current_price):
-    if current_price <= token_trigger_prices[instrument_token]:  # entry trigger breached
+    if current_price >= token_trigger_prices[instrument_token]:  # entry trigger breached
         token_trigger_prices[instrument_token] = current_price * ENTRY_TRIGGER_TIMES
         sendSignal(ENTER, instrument_token, current_price)
     else:  # update entry trigger
-        token_trigger_prices[instrument_token] = max(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
+        token_trigger_prices[instrument_token] = min(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
 
 def checkStoploss(instrument_token, current_price):
     for position in current_positions[instrument_token]:
-        if current_price >= position['stoploss']: # stoploss breached
+        if current_price <= position['stoploss']: # stoploss breached
             sendSignal(EXIT, instrument_token, position)
         else:  # update stoploss
             position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))

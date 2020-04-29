@@ -10,7 +10,7 @@ from django.utils.timezone import now
 from kiteconnect import KiteTicker
 
 from stock_project import settings
-from stocktradingapp import stocktradershort
+from stocktradingapp import stocktradershort, stocktraderlong
 from stocktradingapp.models import Stock, Controls
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -52,7 +52,7 @@ def startStockTrader(tick_queue):
                                     name='stockTrader_thread')
         traderThread.start()
     elif TRADING_SIDE == LONG_SIDE:
-        traderThread = threading.Thread(target=stocktradershort.analyzeTicks, args=(tick_queue,), daemon=True,
+        traderThread = threading.Thread(target=stocktraderlong.analyzeTicks, args=(tick_queue,), daemon=True,
                                         name='stockTrader_thread')
         traderThread.start()
     else:
