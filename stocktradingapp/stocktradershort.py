@@ -185,17 +185,17 @@ def startPostbackProcessingThread():
     postback_processing_thread.start()
 
 def checkEntryTrigger(instrument_token, current_price):
-    if current_price <= token_trigger_prices[instrument_token]:  # entry trigger breached
+    if current_price <= token_trigger_prices[instrument_token]: # entry trigger breached
         token_trigger_prices[instrument_token] = current_price * ENTRY_TRIGGER_TIMES
         sendSignal(ENTER, instrument_token, current_price)
-    else:  # update entry trigger
+    else: # update entry trigger
         token_trigger_prices[instrument_token] = max(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
 
 def checkStoploss(instrument_token, current_price):
     for position in current_positions[instrument_token]:
         if current_price >= position['stoploss']: # stoploss breached
             sendSignal(EXIT, instrument_token, position)
-        else:  # update stoploss
+        else: # update stoploss
             position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))
 
 def updatePositionStoploss(position, current_price):
@@ -231,8 +231,7 @@ def tradeExecutor(zerodha_user_id):
                           'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
 
 def verifyEntryCondition(zerodha_user_id, instrument_token):
-    current_positions_for_token = current_positions[instrument_token]
-    for position in current_positions_for_token:
+    for position in current_positions[instrument_token]:
         if position['user_id'] == zerodha_user_id:
             return False
     current_time = now().time()
@@ -257,8 +256,7 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
     pending_orders[zerodha_user_id].append({'enter_or_exit':ENTER, 'order_id':order_id, 'instrument_token':signal[1]})
 
 def verifyExitCondition(instrument_token, position):
-    pending_orders_for_user = pending_orders[position['user_id']]
-    for pending_order in pending_orders_for_user:
+    for pending_order in pending_orders[position['user_id']]:
         if pending_order['instrument_token'] == instrument_token and pending_order['enter_or_exit'] == EXIT:
             return False
     return True

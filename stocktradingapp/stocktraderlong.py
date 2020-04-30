@@ -185,22 +185,22 @@ def startPostbackProcessingThread():
     postback_processing_thread.start()
 
 def checkEntryTrigger(instrument_token, current_price):
-    if current_price >= token_trigger_prices[instrument_token]:  # entry trigger breached
+    if current_price >= token_trigger_prices[instrument_token]: # entry trigger breached
         token_trigger_prices[instrument_token] = current_price * ENTRY_TRIGGER_TIMES
         sendSignal(ENTER, instrument_token, current_price)
-    else:  # update entry trigger
+    else: # update entry trigger
         token_trigger_prices[instrument_token] = min(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
 
 def checkStoploss(instrument_token, current_price):
     for position in current_positions[instrument_token]:
         if current_price <= position['stoploss']: # stoploss breached
             sendSignal(EXIT, instrument_token, position)
-        else:  # update stoploss
-            position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))
+        else: # update stoploss
+            position['stoploss'] = max(position['stoploss'], updatePositionStoploss(position, current_price))
 
 def updatePositionStoploss(position, current_price):
-    remaining_target = current_price - position['target_price'] if current_price > position['target_price'] else 0
-    return current_price + \
+    remaining_target = position['target_price'] - current_price if position['target_price'] > current_price else 0
+    return current_price - \
            (remaining_target * position['slrange_tprofit_ratio'] + POSITION_TARGET_STOPLOSS) * position['one_percent_entry_price']
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition): # 0 for exit, 1 for enter
@@ -231,8 +231,7 @@ def tradeExecutor(zerodha_user_id):
                           'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
 
 def verifyEntryCondition(zerodha_user_id, instrument_token):
-    current_positions_for_token = current_positions[instrument_token]
-    for position in current_positions_for_token:
+    for position in current_positions[instrument_token]:
         if position['user_id'] == zerodha_user_id:
             return False
     current_time = now().time()
@@ -246,19 +245,18 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
     if quantity == 0:
         return
     if variety == CO_ORDER: #place co order
-        trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
+        trigger_price = calculateCOtriggerPrice(token_co_lower_trigger[signal[1]], signal[2])
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
-                                    transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
+                                    transaction_type='BUY', quantity=quantity, product='MIS', order_type='MARKET',
                                     validity='DAY', disclosed_quantity=quantity, trigger_price=trigger_price)
     else: #place regular order(mis)
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
-                                    transaction_type='SELL', quantity=quantity, product='MIS',
+                                    transaction_type='BUY', quantity=quantity, product='MIS',
                                     order_type='MARKET', validity='DAY', disclosed_quantity=quantity)
     pending_orders[zerodha_user_id].append({'enter_or_exit':ENTER, 'order_id':order_id, 'instrument_token':signal[1]})
 
 def verifyExitCondition(instrument_token, position):
-    pending_orders_for_user = pending_orders[position['user_id']]
-    for pending_order in pending_orders_for_user:
+    for pending_order in pending_orders[position['user_id']]:
         if pending_order['instrument_token'] == instrument_token and pending_order['enter_or_exit'] == EXIT:
             return False
     return True
@@ -268,7 +266,7 @@ def placeExitOrder(kite, instrument_token, position):
         order_id = kite.cancel_order(variety=CO_ORDER, order_id=position['order_id'], parent_order_id=position['parent_order_id'])
     else:
         order_id = kite.place_order(variety=position['variety'], exchange='NSE', tradingsymbol=token_symbols[instrument_token],
-                                    transaction_type='BUY', quantity=position['number_of_stocks'], order_type='MARKET',
+                                    transaction_type='SELL', quantity=position['number_of_stocks'], order_type='MARKET',
                                     product='MIS', validity='DAY', disclosed_quantity=position['number_of_stocks'])
     pending_orders[position['user_id']].append({'enter_or_exit':EXIT, 'order_id':order_id, 'instrument_token':instrument_token})
 
