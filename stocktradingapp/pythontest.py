@@ -18,13 +18,14 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 #              {'name': 'felix', 'age': 28, 'gender': 'male'}]
 
 def runTests():
-    schedule.every().day.at('16:19').do(scheduleExit)
-    while True:
-        schedule.run_pending()
-        sleep(1)
-
-def scheduleExit():
-    schedule.every().day.at('16:21').do(logtime)
+    logtime()
+#     schedule.every().day.at('16:19').do(scheduleExit)
+#     while True:
+#         schedule.run_pending()
+#         sleep(1)
+#
+# def scheduleExit():
+#     schedule.every().day.at('16:21').do(logtime)
     # logging.debug('schedule started...')
     # logging.debug('tiMe : {}'.format(time.time()))
     # logging.debug('localtiMe : {}'.format(time.localtime()))
