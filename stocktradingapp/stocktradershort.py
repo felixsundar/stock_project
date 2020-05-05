@@ -66,7 +66,7 @@ signal_queues = {}
 
 # OTHER GLOBALS
 postback_queue = Queue(maxsize=500)
-order_variety = CO_ORDER
+order_variety = settings.ORDER_VARIETY
 
 def analyzeTicks(tick_queue):
     if not setupTradingThreads():
@@ -156,7 +156,7 @@ def setupTokenMaps():
 
 def setupParameters():
     global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION,\
-        POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_STOPLOSS_RANGE, POSITION_TARGET_PERCENT,\
+        POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_STOPLOSS_RANGE, POSITION_TARGET_PERCENT, order_variety,\
         USER_STOPLOSS_PERCENT, USER_TARGET_STOPLOSS, USER_STOPLOSS_RANGE, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
@@ -177,6 +177,7 @@ def setupParameters():
         USER_TARGET_PERCENT = controls.user_target_percent
         ENTRY_TIME_START = controls.entry_time_start.time()
         ENTRY_TIME_END = controls.entry_time_end.time()
+        order_variety = controls.order_variety
     except Exception as e:
         pass
 
@@ -217,14 +218,12 @@ def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition)
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
     kite = user_kites[zerodha_user_id]
-    place = True
     while True:
         signal = signal_queue.get(True)
         try:
-            if signal[0] == ENTER and verifyEntryCondition(zerodha_user_id, signal[1]) and place == True:
-                place = False
+            if signal[0] == ENTER and verifyEntryCondition(zerodha_user_id, signal[1]):
                 placeEntryOrder(zerodha_user_id, kite, signal)
-            elif signal[0] == EXIT and verifyExitCondition(signal[1], signal[2]):
+            elif signal[0] == EXIT and not signal[2]['exit_pending']:
                 placeExitOrder(kite, signal[1], signal[2])
         except Exception as e:
             logging.debug('Exception while placing order for user - {}\n'
@@ -255,12 +254,6 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
                                     order_type='MARKET', validity='DAY', disclosed_quantity=quantity)
     pending_orders[zerodha_user_id].append({'enter_or_exit':ENTER, 'order_id':order_id, 'instrument_token':signal[1]})
 
-def verifyExitCondition(instrument_token, position):
-    for pending_order in pending_orders[position['user_id']]:
-        if pending_order['instrument_token'] == instrument_token and pending_order['enter_or_exit'] == EXIT:
-            return False
-    return True
-
 def placeExitOrder(kite, instrument_token, position):
     if position['variety'] == CO_ORDER:
         order_id = kite.cancel_order(variety=CO_ORDER, order_id=position['order_id'], parent_order_id=position['parent_order_id'])
@@ -268,6 +261,7 @@ def placeExitOrder(kite, instrument_token, position):
         order_id = kite.place_order(variety=position['variety'], exchange='NSE', tradingsymbol=token_symbols[instrument_token],
                                     transaction_type='BUY', quantity=position['number_of_stocks'], order_type='MARKET',
                                     product='MIS', validity='DAY', disclosed_quantity=position['number_of_stocks'])
+    position['exit_pending'] = True
     pending_orders[position['user_id']].append({'enter_or_exit':EXIT, 'order_id':order_id, 'instrument_token':instrument_token})
 
 def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_price):
@@ -321,9 +315,9 @@ def updateEntryOrderComplete(order_details):
     if order_details['variety'] == CO_ORDER:
         second_leg_order_details = getSecondLegOrder(order_details)
         new_position = constructNewPosition(order_details, second_leg_order_details)
-        updateAmountAtRisk(ENTER, order_details['user_id'], order_details['average_price'], order_details['filled_quantity'])
     else:
         new_position = constructNewPosition(order_details)
+    updateAmountAtRisk(ENTER, order_details['user_id'], order_details['average_price'], order_details['filled_quantity'])
     current_positions[order_details['instrument_token']].append(new_position)
 
 def updateAmountAtRisk(enter_or_exit, zerodha_user_id, price, number_of_stocks):
