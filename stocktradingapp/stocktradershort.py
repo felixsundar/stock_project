@@ -32,8 +32,8 @@ MIN_INVESTMENT_PER_POSITION = settings.MIN_INVESTMENT_PER_POSITION
 
 POSITION_STOPLOSS_PERCENT = settings.POSITION_STOPLOSS_PERCENT
 POSITION_TARGET_STOPLOSS = settings.POSITION_TARGET_STOPLOSS
-POSITION_STOPLOSS_RANGE = POSITION_STOPLOSS_PERCENT - POSITION_TARGET_STOPLOSS
 POSITION_TARGET_PERCENT = settings.POSITION_TARGET_PERCENT
+POSITION_STOPLOSS_TARGET_RATIO = POSITION_TARGET_PERCENT / POSITION_STOPLOSS_PERCENT
 
 USER_STOPLOSS_PERCENT = settings.USER_STOPLOSS_PERCENT
 USER_TARGET_STOPLOSS = settings.USER_TARGET_STOPLOSS
@@ -155,11 +155,13 @@ def setupTokenMaps():
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
 def setupParameters():
-    global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION,\
-        POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_STOPLOSS_RANGE, POSITION_TARGET_PERCENT, order_variety,\
-        USER_STOPLOSS_PERCENT, USER_TARGET_STOPLOSS, USER_STOPLOSS_RANGE, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END
+    global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, \
+        POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, order_variety, USER_STOPLOSS_PERCENT,\
+        USER_TARGET_STOPLOSS, USER_STOPLOSS_RANGE, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END, POSITION_STOPLOSS_TARGET_RATIO
+
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
+
         ENTRY_TRIGGER_TIMES = (100.0 - controls.entry_trigger_percent) / 100.0
 
         MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
@@ -168,13 +170,14 @@ def setupParameters():
 
         POSITION_STOPLOSS_PERCENT = controls.position_stoploss_percent
         POSITION_TARGET_STOPLOSS = controls.position_target_stoploss
-        POSITION_STOPLOSS_RANGE = POSITION_STOPLOSS_PERCENT - POSITION_TARGET_STOPLOSS
         POSITION_TARGET_PERCENT = controls.position_target_percent
+        POSITION_STOPLOSS_TARGET_RATIO = POSITION_TARGET_PERCENT / POSITION_STOPLOSS_PERCENT
 
         USER_STOPLOSS_PERCENT = controls.user_stoploss_percent
         USER_TARGET_STOPLOSS = controls.user_target_stoploss
         USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
         USER_TARGET_PERCENT = controls.user_target_percent
+
         ENTRY_TIME_START = controls.entry_time_start.time()
         ENTRY_TIME_END = controls.entry_time_end.time()
         order_variety = controls.order_variety
@@ -200,9 +203,7 @@ def checkStoploss(instrument_token, current_price):
             position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))
 
 def updatePositionStoploss(position, current_price):
-    remaining_target = current_price - position['target_price'] if current_price > position['target_price'] else 0
-    return current_price + \
-           (remaining_target * position['slrange_tprofit_ratio'] + POSITION_TARGET_STOPLOSS) * position['one_percent_entry_price']
+    return current_price + max((current_price - position['target_price']) / POSITION_STOPLOSS_TARGET_RATIO, position['target_stoploss'])
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
@@ -360,8 +361,7 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['entry_price'] = order_details['average_price']
     new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
     new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
-    new_position['slrange_tprofit_ratio'] = POSITION_STOPLOSS_RANGE / (new_position['entry_price'] - new_position['target_price'])
-    new_position['one_percent_entry_price'] = new_position['entry_price'] / 100.0
+    new_position['target_stoploss'] = POSITION_TARGET_STOPLOSS * order_details['average_price'] / 100.0
     if second_leg_order_details:
         new_position['order_id'] = second_leg_order_details['order_id']
         new_position['parent_order_id'] = second_leg_order_details['parent_order_id']

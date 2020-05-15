@@ -55,4 +55,4 @@ class Controls(models.Model):
     entry_time_end = models.DateTimeField(help_text='default: 15:18:00')
     exit_time = models.DateTimeField(help_text='default: 15:19:00')
     trading_side = models.IntegerField(choices=[(1, 'Short Side'), (2, 'Long Side'), (3, 'Don\'t Trade')], default=1)
-    order_variety = models.CharField(choices=[('co', 'CO ORDER'), ('regular', 'REGULAR ORDER')])
+    order_variety = models.CharField(max_length=20, choices=[('co', 'CO ORDER'), ('regular', 'REGULAR ORDER')])
