@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 # Register your models here.
-from stocktradingapp.models import ZerodhaAccount, Stock, KiteConnectApp
+from stocktradingapp.models import ZerodhaAccount, Stock, KiteConnectApp, Controls
 
 
 class StockAdmin(admin.ModelAdmin):
@@ -17,3 +17,4 @@ class KiteConnectAppAdmin(admin.ModelAdmin):
 admin.site.register(Stock, StockAdmin)
 admin.site.register(ZerodhaAccount, ZerodhaAccountAdmin)
 admin.site.register(KiteConnectApp, KiteConnectAppAdmin)
+admin.site.register(Controls)
