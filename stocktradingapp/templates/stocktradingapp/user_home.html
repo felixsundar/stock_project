@@ -13,7 +13,7 @@ access_token : <b>Invalid</b>
 {% endif %}<br>
 <a href="{% url 'authZerodha' %}">Renew Token</a>
 {% else %}
-<a href="{% url 'authZerodha' %}">Link Zerodha</a>
+Zerodha account not linked. <a href="{% url 'authZerodha' %}">Link Zerodha</a>
 {% endif %}
 <br><br>
 <a href="{% url 'logout' %}">Logout</a>
