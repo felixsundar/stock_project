@@ -37,9 +37,9 @@ def createWebSocketTicker():
     try:
         user = User.objects.get_by_natural_key(settings.PRIMARY_USERNAME)
         user_zerodha = user.user_zerodha.first()
+        return KiteTicker(user_zerodha.api_key, user_zerodha.access_token)
     except Exception as e:
         return None
-    return KiteTicker(user_zerodha.api_key, user_zerodha.access_token)
 
 def startStockTrader(tick_queue):
     global TRADING_SIDE
