@@ -34,9 +34,10 @@ def runStockMonitor():
     startWebSocketTicker(kws, tick_queue)
 
 def createWebSocketTicker():
-    user = User.objects.get_by_natural_key(settings.PRIMARY_USERNAME)
-    user_zerodha = user.user_zerodha.first()
-    if user_zerodha is None:
+    try:
+        user = User.objects.get_by_natural_key(settings.PRIMARY_USERNAME)
+        user_zerodha = user.user_zerodha.first()
+    except Exception as e:
         return None
     return KiteTicker(user_zerodha.api_key, user_zerodha.access_token)
 
