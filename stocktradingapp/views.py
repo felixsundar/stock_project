@@ -21,9 +21,10 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 @login_required
 def index(request):
     user_zerodha = request.user.user_zerodha.first()
+    access_token_valid = validateAccessToken(user_zerodha.access_token_time) if user_zerodha else None
     context = {
         'user_zerodha':user_zerodha,
-        'access_token_valid':validateAccessToken(user_zerodha.access_token_time)
+        'access_token_valid': access_token_valid
     }
     return render(request, template_name='stocktradingapp/user_home.html', context=context)
 
