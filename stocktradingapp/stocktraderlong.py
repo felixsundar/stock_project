@@ -37,8 +37,8 @@ POSITION_STOPLOSS_TARGET_RATIO = POSITION_TARGET_PERCENT / POSITION_STOPLOSS_PER
 
 USER_STOPLOSS_PERCENT = settings.USER_STOPLOSS_PERCENT
 USER_TARGET_STOPLOSS = settings.USER_TARGET_STOPLOSS
-USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
 USER_TARGET_PERCENT = settings.USER_TARGET_PERCENT
+USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 
 ENTRY_TIME_START = now().time().replace(hour=settings.ENTRY_TIME_START[0], minute=settings.ENTRY_TIME_START[1],
                                         second=settings.ENTRY_TIME_START[2])
@@ -61,6 +61,7 @@ live_funds_available = {}
 user_net_value = {}
 user_target_value = {}
 user_stoploss = {}
+user_target_stoploss = {}
 user_amount_at_risk = {}
 signal_queues = {}
 
@@ -69,11 +70,11 @@ postback_queue = Queue(maxsize=500)
 order_variety = settings.ORDER_VARIETY
 
 def analyzeTicks(tick_queue):
+    setupParameters()
     if not setupTradingThreads():
         return
     updateTriggerRangesInDB()
     setupTokenMaps()
-    setupParameters()
     startPostbackProcessingThread()
     logging.debug('long stocktrader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
@@ -106,15 +107,17 @@ def setupTradingThreads():
 def setupUserMaps(user_zerodha):
     kite = KiteConnect(user_zerodha.api_key)
     kite.set_access_token(user_zerodha.access_token)
+    user_kites[user_zerodha.user_id] = kite
+
     updateFundAvailable(user_zerodha.user_id)
     user_zerodha.fund_available = live_funds_available[user_zerodha.user_id]
     user_zerodha.save()
 
-    user_kites[user_zerodha.user_id] = kite
     user_initial_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
     user_target_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id] * (100.0 + USER_TARGET_PERCENT) / 100.0
     user_net_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
-    user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) / 100.0 * live_funds_available[user_zerodha.user_id]
+    user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) * live_funds_available[user_zerodha.user_id] / 100.0
+    user_target_stoploss[user_zerodha.user_id] = USER_TARGET_STOPLOSS * user_net_value[user_zerodha.user_id] / 100.0
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
@@ -157,7 +160,7 @@ def setupTokenMaps():
 def setupParameters():
     global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, \
         POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, order_variety, USER_STOPLOSS_PERCENT, \
-        USER_TARGET_STOPLOSS, USER_STOPLOSS_RANGE, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END, POSITION_STOPLOSS_TARGET_RATIO
+        USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END, POSITION_STOPLOSS_TARGET_RATIO
 
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
@@ -175,8 +178,8 @@ def setupParameters():
 
         USER_STOPLOSS_PERCENT = controls.user_stoploss_percent
         USER_TARGET_STOPLOSS = controls.user_target_stoploss
-        USER_STOPLOSS_RANGE = USER_STOPLOSS_PERCENT - USER_TARGET_STOPLOSS
         USER_TARGET_PERCENT = controls.user_target_percent
+        USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 
         ENTRY_TIME_START = controls.entry_time_start.time()
         ENTRY_TIME_END = controls.entry_time_end.time()
@@ -277,7 +280,8 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
         return (0, order_variety_local)
     investment_for_riskable_amount = riskable_amount * 100.0 / POSITION_STOPLOSS_PERCENT # riskable_amount = 0.5% then ? = 100%...
     amount_to_invest = min(investment_for_riskable_amount, live_funds_available[zerodha_user_id] * margin, MAX_INVESTMENT_PER_POSITION)
-    quantity = amount_to_invest // (current_price + 1) if amount_to_invest > MIN_INVESTMENT_PER_POSITION else 0 # 1 added to match the anticipated price increase in the time gap
+    quantity = amount_to_invest // (current_price + 1) if amount_to_invest > MIN_INVESTMENT_PER_POSITION else 0
+    # 1 added to match the anticipated price increase in the time gap
     return (int(quantity), order_variety_local)
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
@@ -342,8 +346,8 @@ def updateUserNetValue(user_id, position, exit_price):
     user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
 
 def updateUserStoploss(user_id):
-    remaining_target = user_target_value[user_id] - user_net_value[user_id] if user_target_value[user_id] > user_net_value[user_id] else 0
-    return user_net_value[user_id] - (remaining_target * USER_STOPLOSS_RANGE / (user_target_value[user_id] - user_initial_value[user_id]) + USER_TARGET_STOPLOSS) * user_initial_value[user_id] / 100.0
+    return user_net_value[user_id] - \
+           max((user_target_value[user_id] - user_net_value[user_id]) / USER_STOPLOSS_TARGET_RATIO, user_target_stoploss[user_id])
 
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]
@@ -362,6 +366,7 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['stoploss'] = order_details['average_price'] * (100.0 - POSITION_STOPLOSS_PERCENT) / 100.0
     new_position['target_price'] = order_details['average_price'] * (100.0 + POSITION_TARGET_PERCENT) / 100.0
     new_position['target_stoploss'] = POSITION_TARGET_STOPLOSS * order_details['average_price'] / 100.0
+    new_position['exit_pending'] = False
     if second_leg_order_details:
         new_position['order_id'] = second_leg_order_details['order_id']
         new_position['parent_order_id'] = second_leg_order_details['parent_order_id']

@@ -107,11 +107,12 @@ def setupTradingThreads():
 def setupUserMaps(user_zerodha):
     kite = KiteConnect(user_zerodha.api_key)
     kite.set_access_token(user_zerodha.access_token)
+    user_kites[user_zerodha.user_id] = kite
+
     updateFundAvailable(user_zerodha.user_id)
     user_zerodha.fund_available = live_funds_available[user_zerodha.user_id]
     user_zerodha.save()
 
-    user_kites[user_zerodha.user_id] = kite
     user_initial_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
     user_target_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id] * (100.0 + USER_TARGET_PERCENT) / 100.0
     user_net_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
@@ -365,6 +366,7 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
     new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
     new_position['target_stoploss'] = POSITION_TARGET_STOPLOSS * order_details['average_price'] / 100.0
+    new_position['exit_pending'] = False
     if second_leg_order_details:
         new_position['order_id'] = second_leg_order_details['order_id']
         new_position['parent_order_id'] = second_leg_order_details['parent_order_id']
