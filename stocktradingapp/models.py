@@ -51,6 +51,7 @@ class Controls(models.Model):
     user_stoploss_percent = models.FloatField(help_text='default: 5.0')
     user_target_stoploss = models.FloatField(help_text='default: 1.0')
     user_target_percent = models.FloatField(help_text='default: 10.0')
+    commission_percent = models.FloatField(help_text='default: 0.06')
     entry_time_start = models.DateTimeField(help_text='default: 9:15:04')
     entry_time_end = models.DateTimeField(help_text='default: 15:18:00')
     exit_time = models.DateTimeField(help_text='default: 15:19:00')

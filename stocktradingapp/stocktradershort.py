@@ -40,6 +40,7 @@ USER_TARGET_STOPLOSS = settings.USER_TARGET_STOPLOSS
 USER_TARGET_PERCENT = settings.USER_TARGET_PERCENT
 USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 
+COMMISSION_PERCENT = settings.COMMISSION_PERCENT
 ENTRY_TIME_START = now().time().replace(hour=settings.ENTRY_TIME_START[0], minute=settings.ENTRY_TIME_START[1],
                                         second=settings.ENTRY_TIME_START[2])
 ENTRY_TIME_END = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
@@ -158,7 +159,7 @@ def setupTokenMaps():
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
 def setupParameters():
-    global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, \
+    global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, COMMISSION_PERCENT, \
         POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, order_variety, USER_STOPLOSS_PERCENT,\
         USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END, POSITION_STOPLOSS_TARGET_RATIO
 
@@ -181,6 +182,7 @@ def setupParameters():
         USER_TARGET_PERCENT = controls.user_target_percent
         USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 
+        COMMISSION_PERCENT = controls.commission_percent
         ENTRY_TIME_START = controls.entry_time_start.time()
         ENTRY_TIME_END = controls.entry_time_end.time()
         order_variety = controls.order_variety
@@ -342,7 +344,9 @@ def updateExitOrderComplete(order_details):
 
 def updateUserNetValue(user_id, position, exit_price):
     trade_profit = (position['entry_price'] - exit_price) * position['number_of_stocks']
-    user_net_value[user_id] += trade_profit
+    commission = (exit_price + position['entry_price']) * position['number_of_stocks'] * COMMISSION_PERCENT / 100.0
+    user_net_value[user_id] += (trade_profit - commission)
+    logging.debug('\nupdated user net value for user - {} is {}'.format(user_id, user_net_value[user_id]))
     user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
 
 def updateUserStoploss(user_id):
