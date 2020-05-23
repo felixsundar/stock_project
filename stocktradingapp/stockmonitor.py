@@ -25,13 +25,13 @@ def runStockMonitor():
     #                 from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
     # except Exception as e:
     #     logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
-    logging.debug('\n\n\n\nstock monitor thread started.\n\n\n\n')
-    tick_queue = Queue(maxsize=5)
-    kws = createWebSocketTicker()
-    if not kws or not startStockTrader(tick_queue):
-        return
-    sleep(5)
-    startWebSocketTicker(kws, tick_queue)
+    logging.debug('\n\n\n\nstock monitor thread started at time - {}\n\n\n\n'.format(now()))
+    # tick_queue = Queue(maxsize=5)
+    # kws = createWebSocketTicker()
+    # if not kws or not startStockTrader(tick_queue):
+    #     return
+    # sleep(5)
+    # startWebSocketTicker(kws, tick_queue)
 
 def createWebSocketTicker():
     try:

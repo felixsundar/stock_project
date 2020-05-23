@@ -2,6 +2,7 @@
 *.log
 *.pot
 *.pyc
+*.sock
 __pycache__
 __pycache__/
 db.sqlite3
