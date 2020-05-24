@@ -49,7 +49,7 @@ except FileNotFoundError as error:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['stock.hidento.com']
+ALLOWED_HOSTS = ['stock.hidento.com', 'localhost']
 
 
 # Application definition
