@@ -20,18 +20,18 @@ LONG_SIDE = 2
 TRADING_SIDE = settings.TRADING_SIDE
 
 def runStockMonitor():
-    # try:
-    #     x=send_mail(subject='Server restarted', message='server restarted successfully at ' + str(now()),
-    #                 from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
-    # except Exception as e:
-    #     logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
+    try:
+        x=send_mail(subject='Stock Project App Started', message='Stock Project App started successfully at ' + str(now()),
+                    from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
+    except Exception as e:
+        logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
     logging.debug('\n\n\n\nstock monitor thread started at time - {}\n\n\n\n'.format(now()))
-    # tick_queue = Queue(maxsize=5)
-    # kws = createWebSocketTicker()
-    # if not kws or not startStockTrader(tick_queue):
-    #     return
-    # sleep(5)
-    # startWebSocketTicker(kws, tick_queue)
+    tick_queue = Queue(maxsize=5)
+    kws = createWebSocketTicker()
+    if not kws or not startStockTrader(tick_queue):
+        return
+    sleep(5)
+    startWebSocketTicker(kws, tick_queue)
 
 def createWebSocketTicker():
     try:
