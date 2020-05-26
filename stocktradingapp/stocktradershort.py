@@ -10,7 +10,7 @@ from django.utils.timezone import now
 from kiteconnect import KiteConnect
 
 from stock_project import settings
-from stocktradingapp.models import Stock, ZerodhaAccount, Controls
+from stocktradingapp.models import Stock, ZerodhaAccount, Controls, LiveMonitor
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
@@ -65,6 +65,7 @@ user_stoploss = {}
 user_target_stoploss = {}
 user_amount_at_risk = {}
 signal_queues = {}
+live_monitor = {}
 
 # OTHER GLOBALS
 postback_queue = Queue(maxsize=500)
@@ -100,6 +101,7 @@ def setupTradingThreads():
         if not validateAccessToken(user_zerodha.access_token_time):
             continue
         setupUserMaps(user_zerodha)
+        updateLiveMonitor(user_zerodha.user_id)
         trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id,),
                                           name=user_zerodha.user_id + '_trader_thread')
         trading_thread.start()
@@ -122,6 +124,16 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=user_zerodha.hstock_user, user_id=user_zerodha.user_id,
+                                                     initial_value=user_initial_value[user_zerodha.user_id])
+
+def updateLiveMonitor(user_id):
+    user_live_monitor = live_monitor[user_id]
+    user_live_monitor.current_value = user_net_value[user_id]
+    user_live_monitor.stoploss = user_stoploss[user_id]
+    user_live_monitor.profit_percent = (user_live_monitor.current_value - user_live_monitor.initial_value) * 100.0 / user_live_monitor.initial_value
+    user_live_monitor.value_at_risk = user_amount_at_risk[user_id]
+    user_live_monitor.save()
 
 def validateAccessToken(access_token_time):
     expiry_time = now().replace(hour=8, minute=30, second=0, microsecond=0)
@@ -311,6 +323,7 @@ def updateOrderFromPostback():
                 else:
                     updateExitOrderComplete(order_details)
                 pending_orders[order_details['user_id']].remove(pending_order)
+                updateLiveMonitor(order_details['user_id'])
         except Exception as e:
             logging.debug('exception while processing postback: \n{}'.format(e))
 

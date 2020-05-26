@@ -6,8 +6,8 @@ from django.db import models
 
 class KiteConnectApp(models.Model):
     hstock_user = models.ForeignKey(User, related_name='user_kite_app', on_delete=models.CASCADE, primary_key=True)
-    api_key = models.CharField(max_length=100)
-    api_secret = models.CharField(max_length=100)
+    api_key = models.CharField(max_length=100, unique=True)
+    api_secret = models.CharField(max_length=100, unique=True)
 
 class ZerodhaAccount(models.Model):
     hstock_user = models.ForeignKey(User, related_name='user_zerodha', on_delete=models.CASCADE, primary_key=True)
@@ -16,12 +16,12 @@ class ZerodhaAccount(models.Model):
     refresh_token = models.CharField(max_length=100, null=True, blank=True)
     public_token = models.CharField(max_length=100, null=True, blank=True)
     api_key = models.CharField(max_length=100)
-    user_id = models.CharField(max_length=100)
+    user_id = models.CharField(max_length=100, unique=True)
     user_name = models.CharField(max_length=100)
     user_shortname = models.CharField(max_length=100)
     email = models.CharField(max_length=100)
-    user_type = models.CharField(max_length=100)
-    broker = models.CharField(max_length=100)
+    user_type = models.CharField(max_length=100, null=True, blank=True)
+    broker = models.CharField(max_length=100, null=True, blank=True)
     exchanges = JSONField(null=True, blank=True)
     products = JSONField(null=True, blank=True)
     order_types = JSONField(null=True, blank=True)
@@ -57,3 +57,13 @@ class Controls(models.Model):
     exit_time = models.DateTimeField(help_text='default: 15:19:00')
     trading_side = models.IntegerField(choices=[(1, 'Short Side'), (2, 'Long Side'), (3, 'Don\'t Trade')], default=1)
     order_variety = models.CharField(max_length=20, choices=[('co', 'CO ORDER'), ('regular', 'REGULAR ORDER')])
+
+class LiveMonitor(models.Model):
+    hstock_user = models.ForeignKey(User, related_name='user_live_monitor', on_delete=models.CASCADE, unique=True)
+    user_id = models.CharField(max_length=100, primary_key=True)
+    initial_value = models.FloatField()
+    current_value = models.FloatField()
+    stoploss = models.FloatField()
+    value_at_risk = models.FloatField()
+    profit_percent = models.FloatField()
+    do_trading = models.BooleanField(default=True)
