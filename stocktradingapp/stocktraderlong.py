@@ -282,8 +282,8 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
         return (0, order_variety_local)
     investment_for_riskable_amount = riskable_amount * 100.0 / POSITION_STOPLOSS_PERCENT # riskable_amount = 0.5% then ? = 100%...
     amount_to_invest = min(investment_for_riskable_amount, live_funds_available[zerodha_user_id] * margin, MAX_INVESTMENT_PER_POSITION)
-    quantity = amount_to_invest // (current_price + 1) if amount_to_invest > MIN_INVESTMENT_PER_POSITION else 0
-    # 1 added to match the anticipated price increase in the time gap
+    quantity = amount_to_invest // (current_price + 1) # 1 added to match the anticipated price increase in the time gap
+    quantity = quantity if (quantity * current_price) >= MIN_INVESTMENT_PER_POSITION else 0
     return (int(quantity), order_variety_local)
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
@@ -293,23 +293,26 @@ def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
 def updateOrderFromPostback():
     while True:
         order_details = postback_queue.get(block=True)
-        sleep(0.3) # postback maybe received instantly after placing order. so wait till order id is added to pending orders list
-        pending_order = getPendingOrder(order_details)
-        if pending_order is None:
-            continue
-        if order_details['status'] == STATUS_CANCELLED:
-            pending_orders[order_details['user_id']].remove(pending_order)
-        elif order_details['status'] == STATUS_REJECTED:
-            pending_orders[order_details['user_id']].remove(pending_order)
-            global order_variety
-            order_variety = REGULAR_ORDER
-        elif order_details['status'] == STATUS_COMPLETE:
-            updateFundAvailable(order_details['user_id'])
-            if pending_order['enter_or_exit'] == ENTER:
-                updateEntryOrderComplete(order_details)
-            else:
-                updateExitOrderComplete(order_details)
-            pending_orders[order_details['user_id']].remove(pending_order)
+        sleep(0.3)  # postback maybe received instantly after placing order. so wait till order id is added to pending orders list
+        try:
+            pending_order = getPendingOrder(order_details)
+            if pending_order is None:
+                continue
+            if order_details['status'] == STATUS_CANCELLED:
+                pending_orders[order_details['user_id']].remove(pending_order)
+            elif order_details['status'] == STATUS_REJECTED:
+                pending_orders[order_details['user_id']].remove(pending_order)
+                global order_variety
+                order_variety = REGULAR_ORDER
+            elif order_details['status'] == STATUS_COMPLETE:
+                updateFundAvailable(order_details['user_id'])
+                if pending_order['enter_or_exit'] == ENTER:
+                    updateEntryOrderComplete(order_details)
+                else:
+                    updateExitOrderComplete(order_details)
+                pending_orders[order_details['user_id']].remove(pending_order)
+        except Exception as e:
+            logging.debug('exception while processing postback: \n{}'.format(e))
 
 def getPendingOrder(order_details):
     user_pending_orders = pending_orders[order_details['user_id']]
@@ -359,7 +362,7 @@ def getSecondLegOrder(order_details):
     for order in orders:
         if order['parent_order_id'] == order_details['order_id']:
             return order
-    raise Exception
+    logging.debug('second leg order not found for co-order: \n{}\n\nall orders retreived: \n{}'.format(order_details, orders))
 
 def constructNewPosition(order_details, second_leg_order_details=None):
     new_position = {}
