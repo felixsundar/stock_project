@@ -73,7 +73,7 @@ order_variety = settings.ORDER_VARIETY
 
 def analyzeTicks(tick_queue):
     setupParameters()
-    if not setupTradingThreads():
+    if not setupUserAccounts():
         return
     updateTriggerRangesInDB()
     setupTokenMaps()
@@ -93,11 +93,12 @@ def analyzeTicks(tick_queue):
         except Exception as e:
             pass
 
-def setupTradingThreads():
+def setupUserAccounts():
+    LiveMonitor.objects.all().delete()
     user_zerodhas = ZerodhaAccount.objects.filter(is_active=True)
-    zerodha_present = False
+    user_present = False
     for user_zerodha in user_zerodhas:
-        zerodha_present = True
+        user_present = True
         if not validateAccessToken(user_zerodha.access_token_time):
             continue
         setupUserMaps(user_zerodha)
@@ -105,7 +106,7 @@ def setupTradingThreads():
         trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id,),
                                           name=user_zerodha.user_id + '_trader_thread')
         trading_thread.start()
-    return zerodha_present
+    return user_present
 
 def setupUserMaps(user_zerodha):
     kite = KiteConnect(user_zerodha.api_key)
