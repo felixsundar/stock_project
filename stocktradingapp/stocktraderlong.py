@@ -10,7 +10,7 @@ from django.utils.timezone import now
 from kiteconnect import KiteConnect
 
 from stock_project import settings
-from stocktradingapp.models import Stock, ZerodhaAccount, Controls
+from stocktradingapp.models import Stock, ZerodhaAccount, Controls, LiveMonitor
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
