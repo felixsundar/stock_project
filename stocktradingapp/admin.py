@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 # Register your models here.
-from stocktradingapp.models import ZerodhaAccount, Stock, KiteConnectApp, Controls
+from stocktradingapp.models import ZerodhaAccount, Stock, KiteConnectApp, Controls, LiveMonitor
 
 
 class StockAdmin(admin.ModelAdmin):
@@ -14,7 +14,11 @@ class ZerodhaAccountAdmin(admin.ModelAdmin):
 class KiteConnectAppAdmin(admin.ModelAdmin):
     list_display = ('hstock_user', 'api_key', 'api_secret')
 
+class LiveMonitorAdmin(admin.ModelAdmin):
+    list_display = ('hstock_user', 'user_id', 'initial_value', 'current_value', 'stoploss', 'value_at_risk', 'profit_percent')
+
 admin.site.register(Stock, StockAdmin)
 admin.site.register(ZerodhaAccount, ZerodhaAccountAdmin)
 admin.site.register(KiteConnectApp, KiteConnectAppAdmin)
 admin.site.register(Controls)
+admin.site.register(LiveMonitor, LiveMonitorAdmin)
