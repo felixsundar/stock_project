@@ -78,7 +78,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('long stocktrader thread started')
+    logging.debug('long stock trader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
@@ -88,7 +88,6 @@ def analyzeTicks(tick_queue):
                 current_price = instrument['last_price']
                 checkEntryTrigger(instrument_token, current_price)
                 checkStoploss(instrument_token, current_price)
-            # logging.debug('tick - {}'.format(tick))
             schedule.run_pending()
         except Exception as e:
             pass
@@ -363,7 +362,6 @@ def updateUserNetValue(user_id, position, exit_price):
     trade_profit = (exit_price - position['entry_price']) * position['number_of_stocks']
     commission = (exit_price + position['entry_price']) * position['number_of_stocks'] * COMMISSION_PERCENT / 100.0
     user_net_value[user_id] += (trade_profit - commission)
-    logging.debug('\nupdated user net value for user - {} is {}'.format(user_id, user_net_value[user_id]))
     user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
 
 def updateUserStoploss(user_id):
