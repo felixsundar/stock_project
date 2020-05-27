@@ -55,8 +55,10 @@ class Controls(models.Model):
     entry_time_start = models.DateTimeField(help_text='default: 9:15:04')
     entry_time_end = models.DateTimeField(help_text='default: 15:18:00')
     exit_time = models.DateTimeField(help_text='default: 15:19:00')
-    trading_side = models.IntegerField(choices=[(1, 'Short Side'), (2, 'Long Side'), (3, 'Don\'t Trade')], default=1)
+    trading_side = models.IntegerField(choices=[(1, 'Short Side'), (2, 'Long Side'), (3, 'Mock Short Side'),
+                                                (4, 'Mock Long Side'), (5, 'Don\'t Trade')], default=1)
     order_variety = models.CharField(max_length=20, choices=[('co', 'CO ORDER'), ('regular', 'REGULAR ORDER')])
+    mock_trading_initial_value = models.FloatField(help_text='default:100000.0')
 
 class LiveMonitor(models.Model):
     hstock_user = models.ForeignKey(User, related_name='user_live_monitor', on_delete=models.CASCADE, unique=True)

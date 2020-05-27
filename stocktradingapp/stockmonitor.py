@@ -10,13 +10,15 @@ from django.utils.timezone import now
 from kiteconnect import KiteTicker
 
 from stock_project import settings
-from stocktradingapp import stocktradershort, stocktraderlong
+from stocktradingapp import stocktradershort, stocktraderlong, mocktradershort, mocktraderlong
 from stocktradingapp.models import Stock, Controls
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 SHORT_SIDE = 1
 LONG_SIDE = 2
+MOCK_SHORT_SIDE = 3
+MOCK_LONG_SIDE = 4
 TRADING_SIDE = settings.TRADING_SIDE
 
 def runStockMonitor():
@@ -50,13 +52,22 @@ def startStockTrader(tick_queue):
         pass
     if TRADING_SIDE == SHORT_SIDE:
         traderThread = threading.Thread(target=stocktradershort.analyzeTicks, args=(tick_queue,), daemon=True,
-                                    name='stockTrader_thread')
+                                    name='stockTraderShort_thread')
         traderThread.start()
     elif TRADING_SIDE == LONG_SIDE:
         traderThread = threading.Thread(target=stocktraderlong.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTrader_thread')
+                                        name='stockTraderLong_thread')
+        traderThread.start()
+    elif TRADING_SIDE == MOCK_SHORT_SIDE:
+        traderThread = threading.Thread(target=mocktradershort.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='mockTraderShort_thread')
+        traderThread.start()
+    elif TRADING_SIDE == MOCK_LONG_SIDE:
+        traderThread = threading.Thread(target=mocktraderlong.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='mockTraderLong_thread')
         traderThread.start()
     else:
+        logging.debug('Not starting any trading threads.')
         return False # Don't do any trading
     return True
 
