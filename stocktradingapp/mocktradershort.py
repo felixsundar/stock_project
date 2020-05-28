@@ -219,6 +219,7 @@ def checkEntryTrigger(instrument_token, current_price):
 def checkStoploss(instrument_token, current_price):
     for position in current_positions[instrument_token]:
         if current_price >= position['stoploss']: # stoploss breached
+            position['exit_price'] = current_price
             sendSignal(EXIT, instrument_token, position)
         else: # update stoploss
             position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))
@@ -363,7 +364,7 @@ def updateEntryOrderComplete(order_details):
         new_position = constructNewPosition(order_details)
     updateAmountAtRisk(ENTER, order_details['user_id'], order_details['average_price'], order_details['filled_quantity'])
     current_positions[order_details['instrument_token']].append(new_position)
-    live_funds_available[order_details['user_id']] -= (order_details['average_price'] * order_details['filled_quanity']
+    live_funds_available[order_details['user_id']] -= (order_details['average_price'] * order_details['filled_quantity']
                                                        / token_mis_margins[order_details['instrument_token']])
 
 def updateAmountAtRisk(enter_or_exit, zerodha_user_id, price, number_of_stocks):
