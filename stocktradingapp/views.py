@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from kiteconnect import KiteConnect
 
 from stock_project import settings
-from stocktradingapp import stocktradershort, stockmonitor, stocktraderlong
+from stocktradingapp import stockTraderShortStoploss, stockmonitor, stockTraderLongStoploss
 from stocktradingapp.models import ZerodhaAccount
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -72,9 +72,9 @@ def zerodhaPostback(request):
     order_details = json.loads(request.body)
     if verifyCheckSum(order_details):
         if stockmonitor.TRADING_SIDE == stockmonitor.SHORT_SIDE:
-            stocktradershort.postback_queue.put(item=order_details, block=True)
+            stockTraderShortStoploss.postback_queue.put(item=order_details, block=True)
         elif stockmonitor.TRADING_SIDE == stockmonitor.LONG_SIDE:
-            stocktraderlong.postback_queue.put(item=order_details, block=True)
+            stockTraderLongStoploss.postback_queue.put(item=order_details, block=True)
         else:
             return HttpResponse('algo trading not running now.')
     return HttpResponse('order details received.')
