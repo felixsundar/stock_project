@@ -144,10 +144,6 @@ def validateAccessToken(access_token_time):
         return False
     return True
 
-def updateFundAvailable(zerodha_user_id):
-    margin = user_kites[zerodha_user_id].margins()
-    live_funds_available[zerodha_user_id] = margin['equity']['available']['live_balance']
-
 def updateTriggerRangesInDB():
     trigger_ranges_response = requests.get(url=settings.TRIGGER_RANGE_URL)
     trigger_ranges = trigger_ranges_response.json()
@@ -339,7 +335,6 @@ def updateOrderFromPostback():
                 global order_variety
                 order_variety = REGULAR_ORDER
             elif order_details['status'] == STATUS_COMPLETE:
-                updateFundAvailable(order_details['user_id'])
                 if pending_order['enter_or_exit'] == ENTER:
                     updateEntryOrderComplete(order_details)
                 else:
