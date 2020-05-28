@@ -73,6 +73,7 @@ live_monitor = {}
 postback_queue = Queue(maxsize=500)
 order_variety = REGULAR_ORDER
 order_id = 1
+exit_time_reached = False
 
 def analyzeTicks(tick_queue):
     setupParameters()
@@ -214,7 +215,7 @@ def checkEntryTrigger(instrument_token, current_price):
 
 def checkStoploss(instrument_token, current_price):
     for position in current_positions[instrument_token]:
-        if current_price <= position['stoploss']: # stoploss breached
+        if current_price <= position['stoploss'] or exit_time_reached: # stoploss breached
             position['exit_price'] = current_price
             sendSignal(EXIT, instrument_token, position)
         else: # update stoploss
@@ -427,6 +428,5 @@ def scheduleExit():
     schedule.every().day.at(exit_time_str).do(exitAllPositions)
 
 def exitAllPositions():
-    for instrument_token in current_positions.keys():
-        for position in current_positions[instrument_token]:
-            sendSignal(EXIT, instrument_token, position)
+    global exit_time_reached
+    exit_time_reached = True
