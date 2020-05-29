@@ -55,8 +55,9 @@ class Controls(models.Model):
     entry_time_start = models.DateTimeField(help_text='default: 9:15:04')
     entry_time_end = models.DateTimeField(help_text='default: 15:18:00')
     exit_time = models.DateTimeField(help_text='default: 15:19:00')
-    trading_side = models.IntegerField(choices=[(1, 'Short Side'), (2, 'Long Side'), (3, 'Mock Short Side'),
-                                                (4, 'Mock Long Side'), (5, 'Don\'t Trade')], default=1)
+    trading_side = models.IntegerField(choices=[(1, 'Short Stopprofit'), (2, 'Long Stopprofit'), (3, 'Short Stoploss'),
+                                                (4, 'Long Stoploss'), (5, 'Mock Short Stopprofit'), (6, 'Mock Long Stopprofit'),
+                                                (7, 'Mock Short Stoploss'), (8, 'Mock Long Stoploss'), (9, 'Don\'t Trade')], default=1)
     order_variety = models.CharField(max_length=20, choices=[('co', 'CO ORDER'), ('regular', 'REGULAR ORDER')])
     mock_trading_initial_value = models.FloatField(help_text='default:100000.0')
 

@@ -82,7 +82,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('short stoploss mock trader thread started')
+    logging.debug('long stopprofit mock trader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
@@ -381,7 +381,7 @@ def updateExitOrderComplete(order_details):
             return
 
 def updateUserNetValue(user_id, position, exit_price):
-    trade_profit = (position['entry_price'] - exit_price) * position['number_of_stocks']
+    trade_profit = (exit_price - position['entry_price']) * position['number_of_stocks']
     live_funds_available[user_id] += trade_profit
     commission = (exit_price + position['entry_price']) * position['number_of_stocks'] * COMMISSION_PERCENT / 100.0
     user_net_value[user_id] += (trade_profit - commission)

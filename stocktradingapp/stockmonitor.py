@@ -10,15 +10,21 @@ from django.utils.timezone import now
 from kiteconnect import KiteTicker
 
 from stock_project import settings
-from stocktradingapp import stockTraderShortStoploss, stockTraderLongStoploss, mockTraderShortStoploss, mockTraderLongStoploss
+from stocktradingapp import stockTraderShortStoploss, stockTraderLongStoploss, mockTraderShortStoploss, \
+    mockTraderLongStoploss, stockTraderShortStopprofit, stockTraderLongStopprofit, mockTraderShortStopprofit, \
+    mockTraderLongStopprofit
 from stocktradingapp.models import Stock, Controls
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
-SHORT_SIDE = 1
-LONG_SIDE = 2
-MOCK_SHORT_SIDE = 3
-MOCK_LONG_SIDE = 4
+SHORT_STOPPROFIT = 1
+LONG_STOPPROFIT = 2
+SHORT_STOPLOSS = 3
+LONG_STOPLOSS = 4
+MOCK_SHORT_STOPPROFIT = 5
+MOCK_LONG_STOPPROFIT = 6
+MOCK_SHORT_STOPLOSS = 7
+MOCK_LONG_STOPLOSS = 8
 TRADING_SIDE = settings.TRADING_SIDE
 
 def runStockMonitor():
@@ -50,21 +56,38 @@ def startStockTrader(tick_queue):
         TRADING_SIDE = controls.trading_side
     except Exception as e:
         pass
-    if TRADING_SIDE == SHORT_SIDE:
+
+    if TRADING_SIDE == SHORT_STOPPROFIT:
+        traderThread = threading.Thread(target=stockTraderShortStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='stockTraderShortStopprofit_thread')
+        traderThread.start()
+    elif TRADING_SIDE == LONG_STOPPROFIT:
+        traderThread = threading.Thread(target=stockTraderLongStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='stockTraderLongStopprofit_thread')
+        traderThread.start()
+    elif TRADING_SIDE == SHORT_STOPLOSS:
         traderThread = threading.Thread(target=stockTraderShortStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderShort_thread')
+                                        name='stockTraderShortStoploss_thread')
         traderThread.start()
-    elif TRADING_SIDE == LONG_SIDE:
+    elif TRADING_SIDE == LONG_STOPLOSS:
         traderThread = threading.Thread(target=stockTraderLongStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderLong_thread')
+                                        name='stockTraderLongStoploss_thread')
         traderThread.start()
-    elif TRADING_SIDE == MOCK_SHORT_SIDE:
+    elif TRADING_SIDE == MOCK_SHORT_STOPPROFIT:
+        traderThread = threading.Thread(target=mockTraderShortStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='mockTraderShortStopprofit_thread')
+        traderThread.start()
+    elif TRADING_SIDE == MOCK_LONG_STOPPROFIT:
+        traderThread = threading.Thread(target=mockTraderLongStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='mockTraderLongStopprofit_thread')
+        traderThread.start()
+    elif TRADING_SIDE == MOCK_SHORT_STOPLOSS:
         traderThread = threading.Thread(target=mockTraderShortStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderShort_thread')
+                                        name='mockTraderShortStoploss_thread')
         traderThread.start()
-    elif TRADING_SIDE == MOCK_LONG_SIDE:
+    elif TRADING_SIDE == MOCK_LONG_STOPLOSS:
         traderThread = threading.Thread(target=mockTraderLongStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderLong_thread')
+                                        name='mockTraderLongStoploss_thread')
         traderThread.start()
     else:
         logging.debug('Not starting any trading threads.')

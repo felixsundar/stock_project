@@ -82,7 +82,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('long mock trader thread started')
+    logging.debug('long stoploss mock trader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
