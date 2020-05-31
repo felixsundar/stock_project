@@ -62,6 +62,7 @@ pending_orders = {} # {userid1:[], userid2:[], userid3:[{enter_or_exit:1, orderi
 user_initial_value = {}
 live_funds_available = {}
 user_net_value = {}
+user_commission = {}
 user_target_value = {}
 user_stoploss = {}
 user_target_stoploss = {}
@@ -123,6 +124,7 @@ def setupUserMaps(user_zerodha):
     user_initial_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
     user_target_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id] * (100.0 + USER_TARGET_PERCENT) / 100.0
     user_net_value[user_zerodha.user_id] = live_funds_available[user_zerodha.user_id]
+    user_commission[user_zerodha.user_id] = 0.0
     user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) * live_funds_available[user_zerodha.user_id] / 100.0
     user_target_stoploss[user_zerodha.user_id] = USER_TARGET_STOPLOSS * user_net_value[user_zerodha.user_id] / 100.0
     user_amount_at_risk[user_zerodha.user_id] = 0.0
@@ -135,8 +137,10 @@ def updateLiveMonitor(user_id):
     user_live_monitor = live_monitor[user_id]
     user_live_monitor.current_value = user_net_value[user_id]
     user_live_monitor.stoploss = user_stoploss[user_id]
-    user_live_monitor.profit_percent = (user_live_monitor.current_value - user_live_monitor.initial_value) * 100.0 / user_live_monitor.initial_value
+    user_live_monitor.net_profit_percent = (user_live_monitor.current_value - user_live_monitor.initial_value) * 100.0 / user_live_monitor.initial_value
     user_live_monitor.value_at_risk = user_amount_at_risk[user_id]
+    user_live_monitor.commission = user_commission[user_id]
+    user_live_monitor.profit = user_live_monitor.current_value - user_live_monitor.initial_value + user_live_monitor.commission
     user_live_monitor.save()
 
 def validateAccessToken(access_token_time):
@@ -383,9 +387,21 @@ def updateExitOrderComplete(order_details):
 def updateUserNetValue(user_id, position, exit_price):
     trade_profit = (exit_price - position['entry_price']) * position['number_of_stocks']
     live_funds_available[user_id] += trade_profit
-    commission = (exit_price + position['entry_price']) * position['number_of_stocks'] * COMMISSION_PERCENT / 100.0
+    commission = calculateCommission(position['entry_price'] * position['number_of_stocks'], exit_price * position['number_of_stocks'])
+    user_commission[user_id] += commission
     user_net_value[user_id] += (trade_profit - commission)
     user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
+
+def calculateCommission(buy_value, sell_value):
+    trade_value = buy_value + sell_value
+    broker_commission_buy = min(20.0, buy_value * 0.03 / 100.0)
+    broker_commission_sell = min(20.0, sell_value * 0.03 / 100.0)
+    transaction_charge_trade = trade_value * 0.00325 / 100.0
+    gst_trade = (broker_commission_buy + broker_commission_sell + transaction_charge_trade) * 18.0 / 100.0
+    stt_sell = sell_value * 0.025 / 100.0
+    sebi_trade = trade_value * 0.0001 / 100.0
+    stamp_duty_trade = trade_value * 0.006 / 100.0
+    return broker_commission_buy + broker_commission_sell + transaction_charge_trade + gst_trade + stt_sell + sebi_trade + stamp_duty_trade
 
 def updateUserStoploss(user_id):
     return user_net_value[user_id] - \

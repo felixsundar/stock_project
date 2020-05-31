@@ -27,6 +27,8 @@ MOCK_SHORT_STOPLOSS = 7
 MOCK_LONG_STOPLOSS = 8
 TRADING_SIDE = settings.TRADING_SIDE
 
+tick_overflow_mail_sent = False
+
 def runStockMonitor():
     try:
         x=send_mail(subject='Stock Project App Started', message='Stock Project App started successfully at ' + str(now()),
@@ -34,7 +36,7 @@ def runStockMonitor():
     except Exception as e:
         logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
     logging.debug('\n\n\n\nstock monitor thread started at time - {}\n\n\n\n'.format(now()))
-    tick_queue = Queue(maxsize=5)
+    tick_queue = Queue(maxsize=3)
     kws = createWebSocketTicker()
     if not kws or not startStockTrader(tick_queue):
         return
@@ -101,6 +103,7 @@ def startWebSocketTicker(kws, tick_queue):
             tick_queue.put_nowait(tick)
         except queue.Full:
             try:
+                sendTickOverflowMail()
                 dump = tick_queue.get_nowait()
                 dump = tick_queue.get_nowait()
             except queue.Empty:
@@ -128,6 +131,21 @@ def startWebSocketTicker(kws, tick_queue):
     # Infinite loop on the main thread. Nothing after this will run.
     # You have to use the pre-defined callbacks to manage subscriptions.
     kws.connect()
+
+def sendTickOverflowMail():
+    global tick_overflow_mail_sent
+    if not tick_overflow_mail_sent:
+        mail_thread = threading.Thread(target=sendEmail, daemon=True, name='mail_thread')
+        mail_thread.start()
+        tick_overflow_mail_sent = True
+
+def sendEmail():
+    logging.debug('\n\nTick overflow occured at time - {}'.format(now()))
+    try:
+        x = send_mail(subject='Tick Overflow', message='Tick overflow occured at time - ' + str(now()),
+                      from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
+    except Exception as e:
+        logging.debug('\n\nemail sending exception while sending tick overflow email:\n\n{}\n\n'.format(e))
 
 def getInstrumentTokens():
     stocks = Stock.objects.filter(active=True)

@@ -15,7 +15,7 @@ class KiteConnectAppAdmin(admin.ModelAdmin):
     list_display = ('hstock_user', 'api_key', 'api_secret')
 
 class LiveMonitorAdmin(admin.ModelAdmin):
-    list_display = ('hstock_user', 'user_id', 'initial_value', 'current_value', 'stoploss', 'value_at_risk', 'profit_percent')
+    list_display = ('hstock_user', 'initial_value', 'value_at_risk', 'stoploss', 'current_value', 'profit', 'commission', 'net_profit_percent')
 
 admin.site.register(Stock, StockAdmin)
 admin.site.register(ZerodhaAccount, ZerodhaAccountAdmin)
