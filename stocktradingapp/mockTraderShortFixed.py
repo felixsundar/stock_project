@@ -24,7 +24,7 @@ CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
 
 # PARAMETERS
-ENTRY_TRIGGER_TIMES = (100.0 - settings.ENTRY_TRIGGER_PERCENT) / 100.0
+ENTRY_TRIGGER_TIMES = (100.0 + settings.ENTRY_TRIGGER_PERCENT) / 100.0
 
 MAX_RISK_PERCENT_PER_TRADE = settings.MAX_RISK_PERCENT_PER_TRADE
 MAX_INVESTMENT_PER_POSITION = settings.MAX_INVESTMENT_PER_POSITION
@@ -83,7 +83,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('short stoploss mock trader thread started')
+    logging.debug('short fixed mock trader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
@@ -169,7 +169,7 @@ def setupTokenMaps():
     for stock in stocks:
         current_positions[stock.instrument_token] = []
         token_symbols[stock.instrument_token] = stock.trading_symbol
-        token_trigger_prices[stock.instrument_token] = 0.0 # initial trigger price
+        token_trigger_prices[stock.instrument_token] = 99999999.0 # initial trigger price
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
@@ -182,7 +182,7 @@ def setupParameters():
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
 
-        ENTRY_TRIGGER_TIMES = (100.0 - controls.entry_trigger_percent) / 100.0
+        ENTRY_TRIGGER_TIMES = (100.0 + controls.entry_trigger_percent) / 100.0
 
         MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
         MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
@@ -210,22 +210,17 @@ def startPostbackProcessingThread():
     postback_processing_thread.start()
 
 def checkEntryTrigger(instrument_token, current_price):
-    if current_price <= token_trigger_prices[instrument_token]: # entry trigger breached
+    if current_price >= token_trigger_prices[instrument_token]: # entry trigger breached
         token_trigger_prices[instrument_token] = current_price * ENTRY_TRIGGER_TIMES
         sendSignal(ENTER, instrument_token, current_price)
     else: # update entry trigger
-        token_trigger_prices[instrument_token] = max(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
+        token_trigger_prices[instrument_token] = min(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
 
 def checkStoploss(instrument_token, current_price):
     for position in current_positions[instrument_token]:
-        if current_price >= position['stoploss'] or exit_time_reached: # stoploss breached
+        if current_price >= position['stoploss'] or current_price <= position['target_price'] or exit_time_reached: # stoploss breached
             position['exit_price'] = current_price
             sendSignal(EXIT, instrument_token, position)
-        else: # update stoploss
-            position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))
-
-def updatePositionStoploss(position, current_price):
-    return current_price + max((current_price - position['target_price']) / POSITION_STOPLOSS_TARGET_RATIO, position['target_stoploss'])
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
@@ -422,7 +417,6 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['entry_price'] = order_details['average_price']
     new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
     new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
-    new_position['target_stoploss'] = POSITION_TARGET_STOPLOSS * order_details['average_price'] / 100.0
     new_position['exit_pending'] = False
     if second_leg_order_details:
         new_position['order_id'] = second_leg_order_details['order_id']

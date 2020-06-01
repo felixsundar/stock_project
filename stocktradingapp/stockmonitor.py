@@ -12,7 +12,7 @@ from kiteconnect import KiteTicker
 from stock_project import settings
 from stocktradingapp import stockTraderShortStoploss, stockTraderLongStoploss, mockTraderShortStoploss, \
     mockTraderLongStoploss, stockTraderShortStopprofit, stockTraderLongStopprofit, mockTraderShortStopprofit, \
-    mockTraderLongStopprofit
+    mockTraderLongStopprofit, stockTraderShortFixed, stockTraderLongFixed, mockTraderShortFixed, mockTraderLongFixed
 from stocktradingapp.models import Stock, Controls
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -25,6 +25,10 @@ MOCK_SHORT_STOPPROFIT = 5
 MOCK_LONG_STOPPROFIT = 6
 MOCK_SHORT_STOPLOSS = 7
 MOCK_LONG_STOPLOSS = 8
+SHORT_FIXED = 9
+LONG_FIXED = 10
+MOCK_SHORT_FIXED = 11
+MOCK_LONG_FIXED = 12
 TRADING_SIDE = settings.TRADING_SIDE
 
 tick_overflow_mail_sent = False
@@ -90,6 +94,22 @@ def startStockTrader(tick_queue):
     elif TRADING_SIDE == MOCK_LONG_STOPLOSS:
         traderThread = threading.Thread(target=mockTraderLongStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
                                         name='mockTraderLongStoploss_thread')
+        traderThread.start()
+    elif TRADING_SIDE == SHORT_FIXED:
+        traderThread = threading.Thread(target=stockTraderShortFixed.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='stockTraderShortFixed_thread')
+        traderThread.start()
+    elif TRADING_SIDE == LONG_FIXED:
+        traderThread = threading.Thread(target=stockTraderLongFixed.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='stockTraderLongFixed_thread')
+        traderThread.start()
+    elif TRADING_SIDE == MOCK_SHORT_FIXED:
+        traderThread = threading.Thread(target=mockTraderShortFixed.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='mockTraderShortFixed_thread')
+        traderThread.start()
+    elif TRADING_SIDE == MOCK_LONG_FIXED:
+        traderThread = threading.Thread(target=mockTraderLongFixed.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='mockTraderLongFixed_thread')
         traderThread.start()
     else:
         logging.debug('Not starting any trading threads.')
