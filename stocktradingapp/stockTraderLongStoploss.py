@@ -301,8 +301,8 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
     quantity = quantity if (quantity * current_price) >= MIN_INVESTMENT_PER_POSITION else 0
     return (int(quantity), order_variety_local)
 
-def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
-    trigger_price = current_price - (current_price * (min(co_upper_trigger_percent - 1.0, 2.5) / 100.0))
+def calculateCOtriggerPrice(co_lower_trigger_percent, current_price):
+    trigger_price = current_price - (current_price * (min(co_lower_trigger_percent - 1.0, 2.5) / 100.0))
     return float('{:.1f}'.format(trigger_price))
 
 def updateOrderFromPostback():

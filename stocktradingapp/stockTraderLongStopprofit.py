@@ -51,7 +51,7 @@ token_symbols = {}
 token_trigger_prices = {}
 token_mis_margins = {}
 token_co_margins = {}
-token_co_upper_trigger = {}
+token_co_lower_trigger = {}
 current_positions = {}
 
 # FOR EACH USER
@@ -172,7 +172,7 @@ def setupTokenMaps():
         token_trigger_prices[stock.instrument_token] = 0.0 # initial trigger price
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
-        token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
+        token_co_lower_trigger[stock.instrument_token] = stock.co_trigger_percent_lower
 
 def setupParameters():
     global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, COMMISSION_PERCENT, \
@@ -265,7 +265,7 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
     if quantity == 0:
         return
     if variety == CO_ORDER: #place co order
-        trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
+        trigger_price = calculateCOtriggerPrice(token_co_lower_trigger[signal[1]], signal[2])
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
                                     transaction_type='BUY', quantity=quantity, product='MIS', order_type='MARKET',
                                     validity='DAY', disclosed_quantity=quantity, trigger_price=trigger_price)
@@ -301,8 +301,8 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
     quantity = quantity if (quantity * current_price) >= MIN_INVESTMENT_PER_POSITION else 0
     return (int(quantity), order_variety_local)
 
-def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
-    trigger_price = current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 2.5) / 100.0))
+def calculateCOtriggerPrice(co_lower_trigger_percent, current_price):
+    trigger_price = current_price - (current_price * (min(co_lower_trigger_percent - 1.0, 2.5) / 100.0))
     return float('{:.1f}'.format(trigger_price))
 
 def updateOrderFromPostback():
