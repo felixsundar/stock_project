@@ -24,7 +24,7 @@ CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
 
 # PARAMETERS
-ENTRY_TRIGGER_TIMES = (100.0 - settings.ENTRY_TRIGGER_PERCENT) / 100.0
+ENTRY_TRIGGER_TIMES = (100.0 + settings.ENTRY_TRIGGER_PERCENT) / 100.0
 
 MAX_RISK_PERCENT_PER_TRADE = settings.MAX_RISK_PERCENT_PER_TRADE
 MAX_INVESTMENT_PER_POSITION = settings.MAX_INVESTMENT_PER_POSITION
@@ -51,7 +51,7 @@ token_symbols = {}
 token_trigger_prices = {}
 token_mis_margins = {}
 token_co_margins = {}
-token_co_upper_trigger = {}
+token_co_lower_trigger = {}
 current_positions = {}
 
 # FOR EACH USER
@@ -79,7 +79,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('long stopprofit stock trader thread started')
+    logging.debug('long stoploss stock trader thread started')
     schedule.every().day.at('15:08').do(scheduleExit)
     while True:
         try:
@@ -169,20 +169,20 @@ def setupTokenMaps():
     for stock in stocks:
         current_positions[stock.instrument_token] = []
         token_symbols[stock.instrument_token] = stock.trading_symbol
-        token_trigger_prices[stock.instrument_token] = 0.0 # initial trigger price
+        token_trigger_prices[stock.instrument_token] = 99999999.0 # initial trigger price
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
-        token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
+        token_co_lower_trigger[stock.instrument_token] = stock.co_trigger_percent_lower
 
 def setupParameters():
     global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, COMMISSION_PERCENT, \
-        POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, order_variety, USER_STOPLOSS_PERCENT,\
+        POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, order_variety, USER_STOPLOSS_PERCENT, \
         USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END, POSITION_STOPLOSS_TARGET_RATIO
 
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
 
-        ENTRY_TRIGGER_TIMES = (100.0 - controls.entry_trigger_percent) / 100.0
+        ENTRY_TRIGGER_TIMES = (100.0 + controls.entry_trigger_percent) / 100.0
 
         MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
         MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
@@ -209,21 +209,21 @@ def startPostbackProcessingThread():
     postback_processing_thread.start()
 
 def checkEntryTrigger(instrument_token, current_price):
-    if current_price <= token_trigger_prices[instrument_token]: # entry trigger breached
+    if current_price >= token_trigger_prices[instrument_token]: # entry trigger breached
         token_trigger_prices[instrument_token] = current_price * ENTRY_TRIGGER_TIMES
         sendSignal(ENTER, instrument_token, current_price)
     else: # update entry trigger
-        token_trigger_prices[instrument_token] = max(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
+        token_trigger_prices[instrument_token] = min(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
 
 def checkStoploss(instrument_token, current_price):
     for position in current_positions[instrument_token]:
-        if current_price >= position['stoploss']: # stoploss breached
+        if current_price <= position['stoploss']: # stoploss breached
             sendSignal(EXIT, instrument_token, position)
         else: # update stoploss
-            position['stoploss'] = min(position['stoploss'], updatePositionStoploss(position, current_price))
+            position['stoploss'] = max(position['stoploss'], updatePositionStoploss(position, current_price))
 
 def updatePositionStoploss(position, current_price):
-    return current_price + max((current_price - position['target_price']) / POSITION_STOPLOSS_TARGET_RATIO, position['target_stoploss'])
+    return current_price - max((position['target_price'] - current_price) / POSITION_STOPLOSS_TARGET_RATIO, position['target_stoploss'])
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
@@ -265,7 +265,7 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
     if quantity == 0:
         return
     if variety == CO_ORDER: #place co order
-        trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
+        trigger_price = calculateCOtriggerPrice(token_co_lower_trigger[signal[1]], signal[2])
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
                                     transaction_type='BUY', quantity=quantity, product='MIS', order_type='MARKET',
                                     validity='DAY', disclosed_quantity=quantity, trigger_price=trigger_price)
@@ -302,7 +302,7 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
     return (int(quantity), order_variety_local)
 
 def calculateCOtriggerPrice(co_upper_trigger_percent, current_price):
-    trigger_price = current_price + (current_price * (min(co_upper_trigger_percent - 1.0, 2.5) / 100.0))
+    trigger_price = current_price - (current_price * (min(co_upper_trigger_percent - 1.0, 2.5) / 100.0))
     return float('{:.1f}'.format(trigger_price))
 
 def updateOrderFromPostback():
@@ -397,8 +397,8 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['variety'] = order_details['variety']
     new_position['number_of_stocks'] = order_details['filled_quantity']
     new_position['entry_price'] = order_details['average_price']
-    new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
-    new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
+    new_position['stoploss'] = order_details['average_price'] * (100.0 - POSITION_STOPLOSS_PERCENT) / 100.0
+    new_position['target_price'] = order_details['average_price'] * (100.0 + POSITION_TARGET_PERCENT) / 100.0
     new_position['target_stoploss'] = POSITION_TARGET_STOPLOSS * order_details['average_price'] / 100.0
     new_position['exit_pending'] = False
     if second_leg_order_details:
