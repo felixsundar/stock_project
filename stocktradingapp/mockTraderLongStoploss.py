@@ -198,7 +198,6 @@ def setupParameters():
         USER_TARGET_PERCENT = controls.user_target_percent
         USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 
-        COMMISSION_PERCENT = controls.commission_percent
         ENTRY_TIME_START = controls.entry_time_start.time()
         ENTRY_TIME_END = controls.entry_time_end.time()
 
