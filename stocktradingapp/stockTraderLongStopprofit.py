@@ -80,7 +80,7 @@ def analyzeTicks(tick_queue):
     setupTokenMaps()
     startPostbackProcessingThread()
     logging.debug('long stopprofit stock trader thread started')
-    schedule.every().day.at('15:08').do(scheduleExit)
+    schedule.every().day.at('11:30').do(scheduleExit)
     while True:
         try:
             tick = tick_queue.get(True)
