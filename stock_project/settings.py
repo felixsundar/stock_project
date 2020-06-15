@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/3.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.0/ref/settings/
 """
-
+import json
 import os
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -20,12 +20,36 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'y!ldh327$fs!t*t92tu_^ov_9p%s0(+(1&zxww!vodrrl*vuk('
+try:
+    with open('/etc/stock_project_config.json') as config_file:
+        config = json.load(config_file)
+
+        SECRET_KEY = config['SECRET_KEY']
+
+        EMAIL_HOST = config['EMAIL_HOST']
+        EMAIL_PORT = config['EMAIL_PORT']
+        EMAIL_HOST_USER = config['EMAIL_HOST_USER']
+        EMAIL_HOST_PASSWORD = config['EMAIL_HOST_PASSWORD']
+        EMAIL_USE_TLS = config['EMAIL_USE_TLS']
+        DEFAULT_FROM_EMAIL = config['DEFAULT_FROM_EMAIL']
+
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql_psycopg2',
+                'NAME': config['DB_NAME'],
+                'USER': config['DB_USER'],
+                'PASSWORD': config['DB_PASSWORD'],
+                'HOST': config['DB_HOST'],
+                'PORT': config['DB_PORT'],
+            }
+        }
+except FileNotFoundError as error:
+    pass
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['stock.hidento.com', 'localhost']
 
 
 # Application definition
@@ -37,6 +61,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'stocktradingapp.apps.StocktradingappConfig',
 ]
 
 MIDDLEWARE = [
@@ -69,16 +94,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'stock_project.wsgi.application'
 
+LOG_FILE_PATH = '/home/ubuntu/logs/stocktradingapp_log.log'
+
 
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
-}
 
 
 # Password validation
@@ -105,16 +125,58 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
 USE_L10N = True
 
-USE_TZ = True
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 STATIC_URL = '/static/'
+
+MEDIA_ROOT  = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'
+
+LOGIN_REDIRECT_URL ='index'
+LOGOUT_REDIRECT_URL = 'index'
+
+PRIMARY_USERNAME = 'felixsundar'
+
+ENTRY_TRIGGER_PERCENT = 0.5
+
+MAX_RISK_PERCENT_PER_TRADE = 0.5
+MAX_INVESTMENT_PER_POSITION = 300000.0
+MIN_INVESTMENT_PER_POSITION = 1000.0
+
+POSITION_STOPLOSS_PERCENT = 0.5
+POSITION_TARGET_STOPLOSS = 0.1
+POSITION_TARGET_PERCENT = 1.0
+
+USER_STOPLOSS_PERCENT = 5.0
+USER_TARGET_STOPLOSS = 1.0
+USER_TARGET_PERCENT = 10.0
+
+COMMISSION_PERCENT = 0.06
+ENTRY_TIME_START = (9, 15, 4)
+ENTRY_TIME_END = (15, 18, 0)
+EXIT_TIME = (15, 19) # schedule takes only hour and minute. not seconds
+
+TRADING_SIDE = 1 # 1 for short, 2 for long, 3 for mock short, 4 for mock long, 5 for no trading
+ORDER_VARIETY = 'co'
+
+MOCK_TRADING_INITIAL_VALUE = 100000.0
+
+CONTROLS_RECORD_ID = 'master_controls'
+
+TRIGGER_RANGE_URL = 'https://api.kite.trade/margins/equity'
+
+try:
+    from .settings_local import *
+except ImportError as e:
+    pass
