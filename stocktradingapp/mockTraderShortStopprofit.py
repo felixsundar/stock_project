@@ -110,6 +110,7 @@ def setupUserAccounts():
         trading_thread = threading.Thread(target=tradeExecutor, daemon=True, args=(user_zerodha.user_id,),
                                           name=user_zerodha.user_id + '_trader_thread')
         trading_thread.start()
+        break # run only one user for mock
     return user_present
 
 def setupUserMaps(user_zerodha):
