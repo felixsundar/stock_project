@@ -98,7 +98,6 @@ def analyzeTicks(tick_queue):
             pass
 
 def setupUserAccounts():
-    LiveMonitor.objects.all().delete()
     user_zerodhas = ZerodhaAccount.objects.filter(is_active=True)
     user_present = False
     for user_zerodha in user_zerodhas:

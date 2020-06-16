@@ -13,7 +13,7 @@ from stock_project import settings
 from stocktradingapp import stockTraderShortStoploss, stockTraderLongStoploss, mockTraderShortStoploss, \
     mockTraderLongStoploss, stockTraderShortStopprofit, stockTraderLongStopprofit, mockTraderShortStopprofit, \
     mockTraderLongStopprofit, stockTraderShortFixed, stockTraderLongFixed, mockTraderShortFixed, mockTraderLongFixed
-from stocktradingapp.models import Stock, Controls
+from stocktradingapp.models import Stock, Controls, LiveMonitor
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
@@ -45,6 +45,7 @@ def runStockMonitor():
     if not kws or not startStockTrader(tick_queue):
         return
     sleep(5)
+    LiveMonitor.objects.all().delete()
     startWebSocketTicker(kws, tick_queue)
 
 def createWebSocketTicker():
