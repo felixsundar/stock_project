@@ -142,7 +142,7 @@ def startWebSocketTicker(kws, tick_queue):
         # On connection close stop the main loop
         # Reconnection will not happen after executing `ws.stop()`
         current_time = now()
-        if current_time > now().time().replace(hour=15, minute=29, second=30):
+        if current_time > now().replace(hour=15, minute=29, second=30):
             ws.stop()
 
     # Assign the callbacks.
