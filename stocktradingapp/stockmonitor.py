@@ -48,7 +48,6 @@ def runStockMonitor():
     if not kws or not startStockTrader(tick_queue1, tick_queue2, tick_queue3, tick_queue4):
         return
     sleep(5)
-    LiveMonitor.objects.all().delete()
     startWebSocketTicker(kws, tick_queue1, tick_queue2, tick_queue3, tick_queue4)
 
 def createWebSocketTicker():
@@ -60,6 +59,7 @@ def createWebSocketTicker():
         return None
 
 def startStockTrader(tick_queue1, tick_queue2, tick_queue3, tick_queue4):
+    LiveMonitor.objects.all().delete()
     traderThread = threading.Thread(target=mockTraderLongFixed.analyzeTicks, args=(tick_queue4,), daemon=True,
                                     name='mockTraderLongFixed_thread')
     traderThread.start()
