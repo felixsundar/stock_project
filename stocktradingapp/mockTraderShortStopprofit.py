@@ -6,10 +6,12 @@ from time import sleep
 
 import requests
 import schedule
+from django.core.mail import send_mail
 from django.utils.timezone import now
 from kiteconnect import KiteConnect
 
 from stock_project import settings
+from stocktradingapp import mockTraderLongStopprofit, mockTraderLongFixed, mockTraderShortFixed
 from stocktradingapp.models import Stock, ZerodhaAccount, Controls, LiveMonitor
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -129,7 +131,7 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
-    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=user_zerodha.hstock_user, user_id=user_zerodha.user_id,
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=user_zerodha.hstock_user, user_id='Short Stopprofit',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
 def updateLiveMonitor(user_id):
@@ -438,8 +440,46 @@ def scheduleExit():
         exit_time =  now().time().replace(hour=settings.EXIT_TIME[0], minute=settings.EXIT_TIME[1])
     entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
     exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
-    schedule.every().day.at(entry_time_end_str).do(blockEntry)
-    schedule.every().day.at(exit_time_str).do(exitAllPositions)
+
+    schedule.every().day.at('10:18').do(sendStatusEmailShortStopprofit)
+    schedule.every().day.at('10:18').do(mockTraderLongStopprofit.sendStatusEmailLongStopprofit)
+    schedule.every().day.at('10:18').do(mockTraderLongFixed.sendStatusEmailLongFixed)
+    schedule.every().day.at('10:18').do(mockTraderShortFixed.sendStatusEmailShortFixed)
+
+    schedule.every().day.at('12:16').do(blockEntry)
+    schedule.every().day.at('12:16').do(mockTraderLongStopprofit.blockEntry)
+    schedule.every().day.at('12:16').do(mockTraderLongFixed.blockEntry)
+    schedule.every().day.at('12:16').do(mockTraderShortFixed.blockEntry)
+
+    schedule.every().day.at('12:17').do(exitAllPositions)
+    schedule.every().day.at('12:17').do(mockTraderLongStopprofit.exitAllPositions)
+    schedule.every().day.at('12:17').do(mockTraderLongFixed.exitAllPositions)
+    schedule.every().day.at('12:17').do(mockTraderShortFixed.exitAllPositions)
+
+    schedule.every().day.at('12:18').do(sendStatusEmailShortStopprofit)
+    schedule.every().day.at('12:18').do(mockTraderLongStopprofit.sendStatusEmailLongStopprofit)
+    schedule.every().day.at('12:18').do(mockTraderLongFixed.sendStatusEmailLongFixed)
+    schedule.every().day.at('12:18').do(mockTraderShortFixed.sendStatusEmailShortFixed)
+
+    schedule.every().day.at('13:18').do(sendStatusEmailShortStopprofit)
+    schedule.every().day.at('13:18').do(mockTraderLongStopprofit.sendStatusEmailLongStopprofit)
+    schedule.every().day.at('13:18').do(mockTraderLongFixed.sendStatusEmailLongFixed)
+    schedule.every().day.at('13:18').do(mockTraderShortFixed.sendStatusEmailShortFixed)
+
+    schedule.every().day.at('15:18').do(blockEntry)
+    schedule.every().day.at('15:18').do(mockTraderLongStopprofit.blockEntry)
+    schedule.every().day.at('15:18').do(mockTraderLongFixed.blockEntry)
+    schedule.every().day.at('15:18').do(mockTraderShortFixed.blockEntry)
+
+    schedule.every().day.at('15:19').do(exitAllPositions)
+    schedule.every().day.at('15:19').do(mockTraderLongStopprofit.exitAllPositions)
+    schedule.every().day.at('15:19').do(mockTraderLongFixed.exitAllPositions)
+    schedule.every().day.at('15:19').do(mockTraderShortFixed.exitAllPositions)
+
+    schedule.every().day.at('15:20').do(sendStatusEmailShortStopprofit)
+    schedule.every().day.at('15:20').do(mockTraderLongStopprofit.sendStatusEmailLongStopprofit)
+    schedule.every().day.at('15:20').do(mockTraderLongFixed.sendStatusEmailLongFixed)
+    schedule.every().day.at('15:20').do(mockTraderShortFixed.sendStatusEmailShortFixed)
 
 def blockEntry():
     global entry_allowed
@@ -448,3 +488,19 @@ def blockEntry():
 def exitAllPositions():
     global exit_time_reached
     exit_time_reached = True
+
+def sendStatusEmailShortStopprofit():
+    logging.debug('\n\nsend status email from short stopprofit called.\n\n')
+    try:
+        l_monitor = live_monitor['FX3876']
+        monitor_status = 'Status for Mock Short Stopprofit at time : ' + str(now()) \
+                         + '\nProfit percent : ' + str(l_monitor.net_profit_percent) \
+                         + '\nProfit : ' + str(l_monitor.profit) \
+                         + '\nCommission : ' + str(l_monitor.commission) \
+                         + '\nFinal Value : ' + str(l_monitor.current_value) \
+                         + '\nStoploss : ' + str(l_monitor.stoploss) \
+                         + '\nValue at risk : ' + str(l_monitor.value_at_risk)
+        x = send_mail(subject='Mock Short Stopprofit Status', message=monitor_status,
+                      from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
+    except Exception as e:
+        logging.debug('\n\n\n\nexception while sending status email:\n\n{}\n\n'.format(e))

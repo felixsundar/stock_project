@@ -40,13 +40,16 @@ def runStockMonitor():
     except Exception as e:
         logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
     logging.debug('\n\n\n\nstock monitor thread started at time - {}\n\n\n\n'.format(now()))
-    tick_queue = Queue(maxsize=3)
+    tick_queue1 = Queue(maxsize=3)
+    tick_queue2 = Queue(maxsize=3)
+    tick_queue3 = Queue(maxsize=3)
+    tick_queue4 = Queue(maxsize=3)
     kws = createWebSocketTicker()
-    if not kws or not startStockTrader(tick_queue):
+    if not kws or not startStockTrader(tick_queue1, tick_queue2, tick_queue3, tick_queue4):
         return
     sleep(5)
     LiveMonitor.objects.all().delete()
-    startWebSocketTicker(kws, tick_queue)
+    startWebSocketTicker(kws, tick_queue1, tick_queue2, tick_queue3, tick_queue4)
 
 def createWebSocketTicker():
     try:
@@ -56,77 +59,36 @@ def createWebSocketTicker():
     except Exception as e:
         return None
 
-def startStockTrader(tick_queue):
-    global TRADING_SIDE
-    try:
-        controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
-        TRADING_SIDE = controls.trading_side
-    except Exception as e:
-        pass
-
-    if TRADING_SIDE == SHORT_STOPPROFIT:
-        traderThread = threading.Thread(target=stockTraderShortStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderShortStopprofit_thread')
-        traderThread.start()
-    elif TRADING_SIDE == LONG_STOPPROFIT:
-        traderThread = threading.Thread(target=stockTraderLongStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderLongStopprofit_thread')
-        traderThread.start()
-    elif TRADING_SIDE == SHORT_STOPLOSS:
-        traderThread = threading.Thread(target=stockTraderShortStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderShortStoploss_thread')
-        traderThread.start()
-    elif TRADING_SIDE == LONG_STOPLOSS:
-        traderThread = threading.Thread(target=stockTraderLongStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderLongStoploss_thread')
-        traderThread.start()
-    elif TRADING_SIDE == MOCK_SHORT_STOPPROFIT:
-        traderThread = threading.Thread(target=mockTraderShortStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderShortStopprofit_thread')
-        traderThread.start()
-    elif TRADING_SIDE == MOCK_LONG_STOPPROFIT:
-        traderThread = threading.Thread(target=mockTraderLongStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderLongStopprofit_thread')
-        traderThread.start()
-    elif TRADING_SIDE == MOCK_SHORT_STOPLOSS:
-        traderThread = threading.Thread(target=mockTraderShortStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderShortStoploss_thread')
-        traderThread.start()
-    elif TRADING_SIDE == MOCK_LONG_STOPLOSS:
-        traderThread = threading.Thread(target=mockTraderLongStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderLongStoploss_thread')
-        traderThread.start()
-    elif TRADING_SIDE == SHORT_FIXED:
-        traderThread = threading.Thread(target=stockTraderShortFixed.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderShortFixed_thread')
-        traderThread.start()
-    elif TRADING_SIDE == LONG_FIXED:
-        traderThread = threading.Thread(target=stockTraderLongFixed.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderLongFixed_thread')
-        traderThread.start()
-    elif TRADING_SIDE == MOCK_SHORT_FIXED:
-        traderThread = threading.Thread(target=mockTraderShortFixed.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderShortFixed_thread')
-        traderThread.start()
-    elif TRADING_SIDE == MOCK_LONG_FIXED:
-        traderThread = threading.Thread(target=mockTraderLongFixed.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='mockTraderLongFixed_thread')
-        traderThread.start()
-    else:
-        logging.debug('Not starting any trading threads.')
-        return False # Don't do any trading
+def startStockTrader(tick_queue1, tick_queue2, tick_queue3, tick_queue4):
+    traderThread = threading.Thread(target=mockTraderLongFixed.analyzeTicks, args=(tick_queue4,), daemon=True,
+                                    name='mockTraderLongFixed_thread')
+    traderThread.start()
+    traderThread1 = threading.Thread(target=mockTraderShortFixed.analyzeTicks, args=(tick_queue3,), daemon=True,
+                                     name='mockTraderShortFixed_thread')
+    traderThread1.start()
+    traderThread2 = threading.Thread(target=mockTraderLongStopprofit.analyzeTicks, args=(tick_queue2,), daemon=True,
+                                     name='mockTraderLongStopprofit_thread')
+    traderThread2.start()
+    traderThread3 = threading.Thread(target=mockTraderShortStopprofit.analyzeTicks, args=(tick_queue1,), daemon=True,
+                                     name='mockTraderShortStopprofit_thread')
+    traderThread3.start()
     return True
 
-def startWebSocketTicker(kws, tick_queue):
+def startWebSocketTicker(kws, tick_queue1, tick_queue2, tick_queue3, tick_queue4):
     def on_ticks(ws, tick):
         # Callback to receive ticks.
         try:
-            tick_queue.put_nowait(tick)
+            tick_queue1.put_nowait(tick)
+            tick_queue2.put_nowait(tick)
+            tick_queue3.put_nowait(tick)
+            tick_queue4.put_nowait(tick)
         except queue.Full:
             try:
                 sendTickOverflowMail()
-                dump = tick_queue.get_nowait()
-                dump = tick_queue.get_nowait()
+                dump = tick_queue1.get_nowait()
+                dump = tick_queue2.get_nowait()
+                dump = tick_queue3.get_nowait()
+                dump = tick_queue4.get_nowait()
             except queue.Empty:
                 pass
 

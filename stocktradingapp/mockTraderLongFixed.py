@@ -5,7 +5,8 @@ from queue import PriorityQueue, Queue
 from time import sleep
 
 import requests
-import schedule
+from django.contrib.auth.models import User
+from django.core.mail import send_mail
 from django.utils.timezone import now
 from kiteconnect import KiteConnect
 
@@ -92,7 +93,6 @@ def analyzeTicks(tick_queue):
                 current_price = instrument['last_price']
                 checkEntryTrigger(instrument_token, current_price)
                 checkStoploss(instrument_token, current_price)
-            schedule.run_pending()
         except Exception as e:
             pass
 
@@ -129,7 +129,8 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
-    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=user_zerodha.hstock_user, user_id=user_zerodha.user_id,
+    test_user = User.objects.get_by_natural_key('testuser2')
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Long Fixed',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
 def updateLiveMonitor(user_id):
@@ -432,8 +433,6 @@ def scheduleExit():
         exit_time =  now().time().replace(hour=settings.EXIT_TIME[0], minute=settings.EXIT_TIME[1])
     entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
     exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
-    schedule.every().day.at(entry_time_end_str).do(blockEntry)
-    schedule.every().day.at(exit_time_str).do(exitAllPositions)
 
 def blockEntry():
     global entry_allowed
@@ -442,3 +441,19 @@ def blockEntry():
 def exitAllPositions():
     global exit_time_reached
     exit_time_reached = True
+
+def sendStatusEmailLongFixed():
+    logging.debug('\n\nsend status email from long fixed called.\n\n')
+    try:
+        l_monitor = live_monitor['FX3876']
+        monitor_status = 'Status for Mock Long fixed at time : ' + str(now()) \
+                         + '\nProfit percent : ' + str(l_monitor.net_profit_percent) \
+                         + '\nProfit : ' + str(l_monitor.profit) \
+                         + '\nCommission : ' + str(l_monitor.commission) \
+                         + '\nFinal Value : ' + str(l_monitor.current_value) \
+                         + '\nStoploss : ' + str(l_monitor.stoploss) \
+                         + '\nValue at risk : ' + str(l_monitor.value_at_risk)
+        x = send_mail(subject='Mock Long Fixed Status', message=monitor_status,
+                      from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
+    except Exception as e:
+        logging.debug('\n\n\n\nexception while sending status email:\n\n{}\n\n'.format(e))
