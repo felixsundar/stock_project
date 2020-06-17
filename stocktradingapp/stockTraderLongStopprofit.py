@@ -43,8 +43,6 @@ USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 COMMISSION_PERCENT = settings.COMMISSION_PERCENT
 ENTRY_TIME_START = now().time().replace(hour=settings.ENTRY_TIME_START[0], minute=settings.ENTRY_TIME_START[1],
                                         second=settings.ENTRY_TIME_START[2])
-ENTRY_TIME_END = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
-                                      second=settings.ENTRY_TIME_END[2])
 
 # FOR EACH TOKEN
 token_symbols = {}
@@ -71,6 +69,7 @@ live_monitor = {}
 # OTHER GLOBALS
 postback_queue = Queue(maxsize=500)
 order_variety = settings.ORDER_VARIETY
+entry_allowed = True
 
 def analyzeTicks(tick_queue):
     setupParameters()
@@ -176,7 +175,7 @@ def setupTokenMaps():
 def setupParameters():
     global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, COMMISSION_PERCENT, \
         POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, order_variety, USER_STOPLOSS_PERCENT,\
-        USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, ENTRY_TIME_END, POSITION_STOPLOSS_TARGET_RATIO
+        USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, POSITION_STOPLOSS_TARGET_RATIO
 
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
@@ -198,7 +197,6 @@ def setupParameters():
         USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 
         ENTRY_TIME_START = controls.entry_time_start.time()
-        ENTRY_TIME_END = controls.entry_time_end.time()
         order_variety = controls.order_variety
     except Exception as e:
         pass
@@ -254,7 +252,7 @@ def verifyEntryCondition(zerodha_user_id, instrument_token):
         if position['user_id'] == zerodha_user_id:
             return False
     current_time = now().time()
-    if current_time > ENTRY_TIME_END or current_time < ENTRY_TIME_START or \
+    if (not entry_allowed) or current_time < ENTRY_TIME_START or \
             user_net_value[zerodha_user_id] <= user_stoploss[zerodha_user_id] or pending_orders[zerodha_user_id]:
         return False
     return True
@@ -406,17 +404,22 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     return new_position
 
 def scheduleExit():
-    global ENTRY_TIME_END
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
-        ENTRY_TIME_END = controls.entry_time_end.time()
+        entry_time_end = controls.entry_time_end.time()
         exit_time = controls.exit_time.time()
     except Exception as e:
-        ENTRY_TIME_END = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
+        entry_time_end = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
                                               second=settings.ENTRY_TIME_END[2])
         exit_time =  now().time().replace(hour=settings.EXIT_TIME[0], minute=settings.EXIT_TIME[1])
+    entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
     exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
+    schedule.every().day.at(entry_time_end_str).do(blockEntry)
     schedule.every().day.at(exit_time_str).do(exitAllPositions)
+
+def blockEntry():
+    global entry_allowed
+    entry_allowed = False
 
 def exitAllPositions():
     for instrument_token in current_positions.keys():
