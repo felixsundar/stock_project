@@ -45,7 +45,6 @@ def runStockMonitor():
     if not kws or not startStockTrader(tick_queue):
         return
     sleep(5)
-    LiveMonitor.objects.all().delete()
     startWebSocketTicker(kws, tick_queue)
 
 def createWebSocketTicker():
@@ -57,6 +56,7 @@ def createWebSocketTicker():
         return None
 
 def startStockTrader(tick_queue):
+    LiveMonitor.objects.all().delete()
     global TRADING_SIDE
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
