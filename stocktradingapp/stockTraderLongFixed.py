@@ -182,13 +182,13 @@ def setupParameters():
 
         ENTRY_TRIGGER_TIMES = (100.0 - controls.entry_trigger_percent) / 100.0
 
-        MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
+        MAX_RISK_PERCENT_PER_TRADE = 0.6
         MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
         MIN_INVESTMENT_PER_POSITION = controls.min_investment_per_position
 
-        POSITION_STOPLOSS_PERCENT = controls.position_stoploss_percent
+        POSITION_STOPLOSS_PERCENT = 0.6
         POSITION_TARGET_STOPLOSS = controls.position_target_stoploss
-        POSITION_TARGET_PERCENT = controls.position_target_percent
+        POSITION_TARGET_PERCENT = 0.3
         POSITION_STOPLOSS_TARGET_RATIO = POSITION_TARGET_PERCENT / POSITION_STOPLOSS_PERCENT
 
         USER_STOPLOSS_PERCENT = controls.user_stoploss_percent
