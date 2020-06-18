@@ -442,15 +442,18 @@ def exitAllPositions():
     global exit_time_reached
     exit_time_reached = True
 
+def stripDecimalValues(value):
+    return '{:.3f}'.format(value)
+
 def sendStatusEmailLongFixed():
     logging.debug('\n\nsend status email from long fixed called.\n\n')
     try:
         l_monitor = live_monitor['FX3876']
         monitor_status = 'Status for Mock Long fixed at time : ' + str(now()) \
-                         + '\nProfit percent : ' + str(l_monitor.net_profit_percent) \
-                         + '\nProfit : ' + str(l_monitor.profit) \
-                         + '\nCommission : ' + str(l_monitor.commission) \
-                         + '\nFinal Value : ' + str(l_monitor.current_value) \
+                         + '\nProfit percent : ' + stripDecimalValues(l_monitor.net_profit_percent) \
+                         + '\nProfit : ' + stripDecimalValues(l_monitor.profit) \
+                         + '\nCommission : ' + stripDecimalValues(l_monitor.commission) \
+                         + '\nFinal Value : ' + stripDecimalValues(l_monitor.current_value) \
                          + '\nStoploss : ' + str(l_monitor.stoploss) \
                          + '\nValue at risk : ' + str(l_monitor.value_at_risk)
         x = send_mail(subject='Mock Long Fixed Status', message=monitor_status,
