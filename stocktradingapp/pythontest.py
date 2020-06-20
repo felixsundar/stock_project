@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
 
 import pytz
@@ -11,14 +11,24 @@ from django.utils.timezone import now
 from stock_project import settings
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
+def testtime():
+    print('current time - ', now())
+    target_time = now() + timedelta(minutes=2)
+    print('target time - ', target_time)
+    while True:
+        if now() >= target_time:
+            print('2 minutes passed...time - ', now())
+        sleep(1)
+
+
 # positions = [{'name': 'felix', 'age': 24, 'gender': 'male'},
 #              {'name': 'felix', 'age': 25, 'gender': 'male'},
 #              {'name': 'felix', 'age': 26, 'gender': 'male'},
 #              {'name': 'felix', 'age': 27, 'gender': 'male'},
 #              {'name': 'felix', 'age': 28, 'gender': 'male'}]
 
-def runTests():
-    logtime()
+# def runTests():
+#     logtime()
 #     schedule.every().day.at('16:19').do(scheduleExit)
 #     while True:
 #         schedule.run_pending()
@@ -61,6 +71,6 @@ def runTests():
 #     for position in positions:
 #         if position['age'] == 27:
 #             position['age'] = 35
-
-def logtime():
-    print('message by scheduled run at......................... {}'.format(now()))
+#
+# def logtime():
+#     print('message by scheduled run at......................... {}'.format(now()))

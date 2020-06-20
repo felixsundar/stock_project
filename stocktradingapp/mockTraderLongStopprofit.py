@@ -451,7 +451,7 @@ def exitAllPositions():
 def stripDecimalValues(value):
     return '{:.3f}'.format(value)
 
-def sendStatusEmailLongStopprofit():
+def sendStatusEmail():
     logging.debug('\n\nsend status email from long stopprofit called.\n\n')
     try:
         l_monitor = live_monitor['FX3876']

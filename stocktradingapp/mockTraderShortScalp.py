@@ -1,6 +1,7 @@
 import logging
 import queue
 import threading
+from datetime import timedelta
 from queue import PriorityQueue, Queue
 from time import sleep
 
@@ -83,16 +84,17 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('short fixed mock trader thread started')
+    logging.debug('short scalp mock trader thread started')
     scheduleExit()
     while True:
         try:
             tick = tick_queue.get(True)
+            current_time = now()
             for instrument in tick:
                 instrument_token = instrument['instrument_token']
                 current_price = instrument['last_price']
                 checkEntryTrigger(instrument_token, current_price)
-                checkStoploss(instrument_token, current_price)
+                checkStoploss(instrument_token, current_price, current_time)
         except Exception as e:
             pass
 
@@ -130,7 +132,7 @@ def setupUserMaps(user_zerodha):
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
     test_user = User.objects.get_by_natural_key('testuser1')
-    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Short Fixed',
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Short Scalp',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
 def updateLiveMonitor(user_id):
@@ -184,13 +186,13 @@ def setupParameters():
 
         ENTRY_TRIGGER_TIMES = (100.0 + controls.entry_trigger_percent) / 100.0
 
-        MAX_RISK_PERCENT_PER_TRADE = 0.6
+        MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
         MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
         MIN_INVESTMENT_PER_POSITION = controls.min_investment_per_position
 
-        POSITION_STOPLOSS_PERCENT = 0.6
+        POSITION_STOPLOSS_PERCENT = controls.position_stoploss_percent
         POSITION_TARGET_STOPLOSS = controls.position_target_stoploss
-        POSITION_TARGET_PERCENT = 0.3
+        POSITION_TARGET_PERCENT = controls.position_target_percent
         POSITION_STOPLOSS_TARGET_RATIO = POSITION_TARGET_PERCENT / POSITION_STOPLOSS_PERCENT
 
         USER_STOPLOSS_PERCENT = controls.user_stoploss_percent
@@ -215,9 +217,9 @@ def checkEntryTrigger(instrument_token, current_price):
     else: # update entry trigger
         token_trigger_prices[instrument_token] = min(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
 
-def checkStoploss(instrument_token, current_price):
+def checkStoploss(instrument_token, current_price, current_time):
     for position in current_positions[instrument_token]:
-        if current_price >= position['stoploss'] or current_price <= position['target_price'] or exit_time_reached: # stoploss breached
+        if current_time >= position['exit_time'] or current_price <= position['target_price'] or exit_time_reached: # stoploss breached
             position['exit_price'] = current_price
             sendSignal(EXIT, instrument_token, position)
 
@@ -415,6 +417,7 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['number_of_stocks'] = order_details['filled_quantity']
     new_position['entry_price'] = order_details['average_price']
     new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
+    new_position['exit_time'] = now() + timedelta(minutes=5)
     new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
     new_position['exit_pending'] = False
     if second_leg_order_details:
@@ -445,18 +448,18 @@ def exitAllPositions():
 def stripDecimalValues(value):
     return '{:.3f}'.format(value)
 
-def sendStatusEmailShortFixed():
-    logging.debug('\n\nsend status email from short fixed called.\n\n')
+def sendStatusEmail():
+    logging.debug('\n\nsend status email from short scalp called.\n\n')
     try:
         l_monitor = live_monitor['FX3876']
-        monitor_status = 'Status for Mock short fixed at time : ' + str(now()) \
+        monitor_status = 'Status for Mock short scalp at time : ' + str(now()) \
                          + '\nProfit percent : ' + stripDecimalValues(l_monitor.net_profit_percent) \
                          + '\nProfit : ' + stripDecimalValues(l_monitor.profit) \
                          + '\nCommission : ' + stripDecimalValues(l_monitor.commission) \
                          + '\nFinal Value : ' + stripDecimalValues(l_monitor.current_value) \
                          + '\nStoploss : ' + str(l_monitor.stoploss) \
                          + '\nValue at risk : ' + str(l_monitor.value_at_risk)
-        x = send_mail(subject='Mock Short Fixed Status', message=monitor_status,
+        x = send_mail(subject='Mock Short Scalp Status', message=monitor_status,
                       from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
     except Exception as e:
         logging.debug('\n\n\n\nexception while sending status email:\n\n{}\n\n'.format(e))

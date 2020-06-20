@@ -129,7 +129,7 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
-    test_user = User.objects.get_by_natural_key('testuser2')
+    test_user = User.objects.get_by_natural_key('testuser')
     live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Long Fixed',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
@@ -445,7 +445,7 @@ def exitAllPositions():
 def stripDecimalValues(value):
     return '{:.3f}'.format(value)
 
-def sendStatusEmailLongFixed():
+def sendStatusEmail():
     logging.debug('\n\nsend status email from long fixed called.\n\n')
     try:
         l_monitor = live_monitor['FX3876']
