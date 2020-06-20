@@ -51,9 +51,17 @@ def createWebSocketTicker():
     try:
         user = User.objects.get_by_natural_key(settings.PRIMARY_USERNAME)
         user_zerodha = user.user_zerodha.first()
+        if not validateAccessToken(user_zerodha.access_token_time):
+            return None
         return KiteTicker(user_zerodha.api_key, user_zerodha.access_token)
     except Exception as e:
         return None
+
+def validateAccessToken(access_token_time):
+    expiry_time = now().replace(hour=8, minute=30, second=0, microsecond=0)
+    if now() > expiry_time and access_token_time < expiry_time:
+        return False
+    return True
 
 def startStockTrader(tick_queue):
     LiveMonitor.objects.all().delete()
