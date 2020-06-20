@@ -76,6 +76,12 @@ order_variety = REGULAR_ORDER
 order_id = 1
 entry_allowed = True
 exit_time_reached = False
+profit_trades = 0
+profit_exit_times = timedelta(seconds=0)
+loss_trades = 0
+loss_percents = 0.0
+exited_trades = 0
+latest_exit_time = now()
 
 def analyzeTicks(tick_queue):
     setupParameters()
@@ -386,6 +392,16 @@ def updateUserNetValue(user_id, position, exit_price):
     user_commission[user_id] += commission
     user_net_value[user_id] += (trade_profit - commission)
     user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
+    global profit_trades, profit_exit_times, loss_trades, loss_percents, latest_exit_time, exited_trades
+    if position['exit_price'] <= position['target_price']:
+        profit_trades += 1
+        profit_exit_times += (now() - position['entry_time'])
+    elif now() >= position['exit_time']:
+        loss_trades += 1
+        loss_percents += (position['entry_price'] - exit_price) * 100.0 / position['entry_price']
+    else:
+        exited_trades += 1
+    latest_exit_time = now()
 
 def calculateCommission(buy_value, sell_value):
     trade_value = buy_value + sell_value
@@ -417,6 +433,7 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['number_of_stocks'] = order_details['filled_quantity']
     new_position['entry_price'] = order_details['average_price']
     new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
+    new_position['entry_time'] = now()
     new_position['exit_time'] = now() + timedelta(minutes=5)
     new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
     new_position['exit_pending'] = False
@@ -457,6 +474,13 @@ def sendStatusEmail():
                          + '\nProfit : ' + stripDecimalValues(l_monitor.profit) \
                          + '\nCommission : ' + stripDecimalValues(l_monitor.commission) \
                          + '\nFinal Value : ' + stripDecimalValues(l_monitor.current_value) \
+                         + '\nProfit Trades count: ' + str(profit_trades) \
+                         + '\nAverage profit exit time : ' + str(profit_exit_times / profit_trades) \
+                         + '\nLoss Trades count : ' + str(loss_trades) \
+                         + '\nAverage Loss percent : ' + str(loss_percents / loss_trades) \
+                         + '\nExited trade count : ' + str(exited_trades) \
+                         + '\nTotal trades : ' + str(profit_trades + loss_trades + exited_trades) \
+                         + '\nLatest Exit Time : ' + str(latest_exit_time) \
                          + '\nStoploss : ' + str(l_monitor.stoploss) \
                          + '\nValue at risk : ' + str(l_monitor.value_at_risk)
         x = send_mail(subject='Mock Short Scalp Status', message=monitor_status,

@@ -12,13 +12,14 @@ from stock_project import settings
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
 def testtime():
-    print('current time - ', now())
-    target_time = now() + timedelta(minutes=2)
-    print('target time - ', target_time)
-    while True:
-        if now() >= target_time:
-            print('2 minutes passed...time - ', now())
-        sleep(1)
+    ans = timedelta(seconds=0)
+    current_time = now()
+    target_time = now() + timedelta(hours=2, minutes=30)
+    duration = (target_time - current_time) / 6
+    print(duration)
+    ans += duration
+    ans += duration
+    print(ans)
 
 
 # positions = [{'name': 'felix', 'age': 24, 'gender': 'male'},
