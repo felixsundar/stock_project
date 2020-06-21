@@ -522,7 +522,10 @@ def sendStatusEmail():
                          + '\nTotal trades : ' + str(profit_trades + loss_trades + exited_trades) \
                          + '\nLatest Exit Time : ' + str(latest_exit_time) \
                          + '\nStoploss : ' + str(l_monitor.stoploss) \
-                         + '\nValue at risk : ' + str(l_monitor.value_at_risk)
+                         + '\nValue at risk : ' + str(l_monitor.value_at_risk) \
+                         + '\n\nCopy paste:\n\n' \
+                         + stripDecimalValues(l_monitor.net_profit_percent) + '\t' + stripDecimalValues(l_monitor.profit) \
+                         + '\t' + stripDecimalValues(l_monitor.commission) + '\t' + stripDecimalValues(l_monitor.current_value)
         x = send_mail(subject='Mock Short Fixed Status', message=monitor_status,
                       from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
     except Exception as e:
