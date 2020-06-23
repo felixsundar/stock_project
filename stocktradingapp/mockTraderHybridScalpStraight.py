@@ -19,6 +19,8 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 # CONSTANTS
 ENTER = 1
 EXIT = 0
+SHORT = 2
+LONG = 3
 STATUS_COMPLETE = 'COMPLETE'
 STATUS_CANCELLED = 'CANCELLED'
 STATUS_REJECTED = 'REJECTED'
@@ -26,7 +28,7 @@ CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
 
 # PARAMETERS
-ENTRY_TRIGGER_TIMES = (100.0 + settings.ENTRY_TRIGGER_PERCENT) / 100.0
+ENTRY_TRIGGER_PERCENT = settings.ENTRY_TRIGGER_PERCENT
 
 MAX_RISK_PERCENT_PER_TRADE = settings.MAX_RISK_PERCENT_PER_TRADE
 MAX_INVESTMENT_PER_POSITION = settings.MAX_INVESTMENT_PER_POSITION
@@ -50,7 +52,8 @@ MOCK_TRADING_INITIAL_VALUE = settings.MOCK_TRADING_INITIAL_VALUE
 
 # FOR EACH TOKEN
 token_symbols = {}
-token_trigger_prices = {}
+token_trigger_prices_upper = {}
+token_trigger_prices_lower = {}
 token_mis_margins = {}
 token_co_margins = {}
 token_co_upper_trigger = {}
@@ -177,20 +180,19 @@ def setupTokenMaps():
     for stock in stocks:
         current_positions[stock.instrument_token] = []
         token_symbols[stock.instrument_token] = stock.trading_symbol
-        token_trigger_prices[stock.instrument_token] = 99999999.0 # initial trigger price
         token_mis_margins[stock.instrument_token] = stock.mis_margin
         token_co_margins[stock.instrument_token] = stock.co_margin
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
 def setupParameters():
-    global ENTRY_TRIGGER_TIMES, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, COMMISSION_PERCENT, \
+    global ENTRY_TRIGGER_PERCENT, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, COMMISSION_PERCENT, \
         POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, USER_STOPLOSS_PERCENT, MOCK_TRADING_INITIAL_VALUE, \
         USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, POSITION_STOPLOSS_TARGET_RATIO
 
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
 
-        ENTRY_TRIGGER_TIMES = (100.0 + controls.entry_trigger_percent) / 100.0
+        ENTRY_TRIGGER_PERCENT = controls.entry_trigger_percent
 
         MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
         MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
@@ -217,28 +219,40 @@ def startPostbackProcessingThread():
     postback_processing_thread.start()
 
 def checkEntryTrigger(instrument_token, current_price):
-    if current_price >= token_trigger_prices[instrument_token]: # entry trigger breached
-        token_trigger_prices[instrument_token] = current_price * ENTRY_TRIGGER_TIMES
-        sendSignal(ENTER, instrument_token, current_price)
-    else: # update entry trigger
-        token_trigger_prices[instrument_token] = min(token_trigger_prices[instrument_token], current_price * ENTRY_TRIGGER_TIMES)
+    try:
+        if current_price >= token_trigger_prices_upper[instrument_token]: # upper trigger breached
+            updateTriggerPrices(instrument_token, current_price)
+            sendSignal(ENTER, instrument_token, current_price, LONG)
+        elif current_price <= token_trigger_prices_lower[instrument_token]: # lower trigger breached
+            updateTriggerPrices(instrument_token, current_price)
+            sendSignal(ENTER, instrument_token, current_price, SHORT)
+    except Exception as e: # update entry trigger
+        updateTriggerPrices(instrument_token, current_price)
+
+def updateTriggerPrices(instrument_token, current_price):
+    token_trigger_prices_upper[instrument_token] = current_price * (100.0 + ENTRY_TRIGGER_PERCENT) / 100.0
+    token_trigger_prices_lower[instrument_token] = current_price * (100.0 - ENTRY_TRIGGER_PERCENT) / 100.0
 
 def checkStoploss(instrument_token, current_price, current_time):
     for position in current_positions[instrument_token]:
-        if current_time >= position['exit_time'] or current_price <= position['target_price'] or exit_time_reached: # stoploss breached
+        if current_time >= position['exit_time'] or exit_time_reached\
+                or (position['side'] == SHORT and current_price <= position['target_price'])\
+                or (position['side'] == LONG and current_price >= position['target_price']): # stoploss breached
             position['exit_price'] = current_price
             sendSignal(EXIT, instrument_token, position)
 
-def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition): # 0 for exit, 1 for enter
+def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition, side = None): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
         for signal_queue in signal_queues.values():
             try:
-                signal_queue.put_nowait((ENTER, instrument_token, currentPrice_or_currentPosition))
+                signal_queue.put_nowait({'enter_or_exit':ENTER, 'side':side, 'instrument_token':instrument_token,
+                                         'current_price':currentPrice_or_currentPosition})
             except queue.Full:
                 pass
     else:
         signal_queue = signal_queues[currentPrice_or_currentPosition['user_id']]
-        signal_queue.put((EXIT, instrument_token, currentPrice_or_currentPosition), block=True)
+        signal_queue.put({'enter_or_exit':EXIT, 'instrument_token':instrument_token, 'current_position':currentPrice_or_currentPosition},
+                         block=True)
 
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
@@ -246,10 +260,10 @@ def tradeExecutor(zerodha_user_id):
     while True:
         signal = signal_queue.get(True)
         try:
-            if signal[0] == ENTER and verifyEntryCondition(zerodha_user_id, signal[1]):
+            if signal['enter_or_exit'] == ENTER and verifyEntryCondition(zerodha_user_id, signal['instrument_token']):
                 placeEntryOrder(zerodha_user_id, kite, signal)
-            elif signal[0] == EXIT and not signal[2]['exit_pending']:
-                placeExitOrder(kite, signal[1], signal[2])
+            elif signal['enter_or_exit'] == EXIT and not signal['current_position']['exit_pending']:
+                placeExitOrder(kite, signal['instrument_token'], signal['current_position'])
         except Exception as e:
             logging.debug('Exception while placing order for user - {}\n'
                           'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
@@ -265,7 +279,7 @@ def verifyEntryCondition(zerodha_user_id, instrument_token):
     return True
 
 def placeEntryOrder(zerodha_user_id, kite, signal):
-    quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal[1], signal[2])
+    quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal['instrument_token'], signal['current_price'])
     if quantity == 0:
         return
     if variety == CO_ORDER: #place co order
@@ -277,8 +291,9 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
         # order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
         #                             transaction_type='SELL', quantity=quantity, product='MIS',
         #                             order_type='MARKET', validity='DAY', disclosed_quantity=quantity)
-        order_id = place_order(zerodha_user_id, variety, quantity, signal[2], signal[1])
-    pending_orders[zerodha_user_id].append({'enter_or_exit':ENTER, 'order_id':order_id, 'instrument_token':signal[1]})
+        order_id = place_order(zerodha_user_id, variety, quantity, signal['instrument_token'], signal['current_price'])
+    pending_orders[zerodha_user_id].append({'enter_or_exit':ENTER, 'side':signal['side'], 'order_id':order_id,
+                                            'instrument_token':signal['instrument_token']})
 
 def placeExitOrder(kite, instrument_token, position):
     if position['variety'] == CO_ORDER:
@@ -287,11 +302,11 @@ def placeExitOrder(kite, instrument_token, position):
         # order_id = kite.place_order(variety=position['variety'], exchange='NSE', tradingsymbol=token_symbols[instrument_token],
         #                             transaction_type='BUY', quantity=position['number_of_stocks'], order_type='MARKET',
         #                             product='MIS', validity='DAY', disclosed_quantity=position['number_of_stocks'])
-        order_id = place_order(position['user_id'], REGULAR_ORDER, position['number_of_stocks'], position['exit_price'], instrument_token)
+        order_id = place_order(position['user_id'], REGULAR_ORDER, position['number_of_stocks'], instrument_token, position['exit_price'])
     position['exit_pending'] = True
     pending_orders[position['user_id']].append({'enter_or_exit':EXIT, 'order_id':order_id, 'instrument_token':instrument_token})
 
-def place_order(user_id, order_variety, number_of_stocks, entry_or_exit_price, instrument_token):
+def place_order(user_id, order_variety, number_of_stocks, instrument_token, entry_or_exit_price):
     global order_id
     order_id += 1
     order_details = {
@@ -342,7 +357,7 @@ def updateOrderFromPostback():
                 order_variety = REGULAR_ORDER
             elif order_details['status'] == STATUS_COMPLETE:
                 if pending_order['enter_or_exit'] == ENTER:
-                    updateEntryOrderComplete(order_details)
+                    updateEntryOrderComplete(order_details, pending_order['side'])
                 else:
                     updateExitOrderComplete(order_details)
                 pending_orders[order_details['user_id']].remove(pending_order)
@@ -357,12 +372,12 @@ def getPendingOrder(order_details):
             return order
     return None
 
-def updateEntryOrderComplete(order_details):
+def updateEntryOrderComplete(order_details, side):
     if order_details['variety'] == CO_ORDER:
         second_leg_order_details = getSecondLegOrder(order_details)
-        new_position = constructNewPosition(order_details, second_leg_order_details)
+        new_position = constructNewPosition(order_details, side, second_leg_order_details)
     else:
-        new_position = constructNewPosition(order_details)
+        new_position = constructNewPosition(order_details, side)
     updateAmountAtRisk(ENTER, order_details['user_id'], order_details['average_price'], order_details['filled_quantity'])
     current_positions[order_details['instrument_token']].append(new_position)
     live_funds_available[order_details['user_id']] -= (order_details['average_price'] * order_details['filled_quantity']
@@ -386,21 +401,26 @@ def updateExitOrderComplete(order_details):
             return
 
 def updateUserNetValue(user_id, position, exit_price):
-    trade_profit = (position['entry_price'] - exit_price) * position['number_of_stocks']
+    if position['side'] == SHORT:
+        price_difference = position['entry_price'] - exit_price
+        commission = calculateCommission(exit_price * position['number_of_stocks'], position['entry_price'] * position['number_of_stocks'])
+    else:
+        price_difference = exit_price - position['entry_price']
+        commission = calculateCommission(position['entry_price'] * position['number_of_stocks'], exit_price * position['number_of_stocks'])
+    trade_profit = price_difference * position['number_of_stocks']
     live_funds_available[user_id] += trade_profit
-    commission = calculateCommission(exit_price * position['number_of_stocks'], position['entry_price'] * position['number_of_stocks'])
     user_commission[user_id] += commission
     user_net_value[user_id] += (trade_profit - commission)
     user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
     global profit_trades, profit_exit_times, loss_trades, loss_percents, latest_exit_time, exited_trades
-    if position['exit_price'] <= position['target_price']:
+    if now() >= position['exit_time']:
+        loss_trades += 1
+        loss_percents += price_difference * 100.0 / position['entry_price']
+    elif exit_time_reached:
+        exited_trades += 1
+    else:
         profit_trades += 1
         profit_exit_times += (now() - position['entry_time'])
-    elif now() >= position['exit_time']:
-        loss_trades += 1
-        loss_percents += (position['entry_price'] - exit_price) * 100.0 / position['entry_price']
-    else:
-        exited_trades += 1
     latest_exit_time = now()
 
 def calculateCommission(buy_value, sell_value):
@@ -426,7 +446,7 @@ def getSecondLegOrder(order_details):
             return order
     logging.debug('second leg order not found for co-order: \n{}\n\nall orders retreived: \n{}'.format(order_details, orders))
 
-def constructNewPosition(order_details, second_leg_order_details=None):
+def constructNewPosition(order_details, side, second_leg_order_details=None):
     new_position = {}
     new_position['user_id'] = order_details['user_id']
     new_position['variety'] = order_details['variety']
@@ -435,7 +455,11 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['stoploss'] = order_details['average_price'] * (100.0 + POSITION_STOPLOSS_PERCENT) / 100.0
     new_position['entry_time'] = now()
     new_position['exit_time'] = now() + timedelta(minutes=10)
-    new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
+    new_position['side'] = side
+    if side == SHORT:
+        new_position['target_price'] = order_details['average_price'] * (100.0 - POSITION_TARGET_PERCENT) / 100.0
+    else:
+        new_position['target_price'] = order_details['average_price'] * (100.0 + POSITION_TARGET_PERCENT) / 100.0
     new_position['exit_pending'] = False
     if second_leg_order_details:
         new_position['order_id'] = second_leg_order_details['order_id']
