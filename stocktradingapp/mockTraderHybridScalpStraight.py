@@ -94,7 +94,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('short scalp mock trader thread started')
+    logging.debug('hybrid scalp straight mock trader thread started')
     scheduleExit()
     while True:
         try:
