@@ -6,12 +6,13 @@ from queue import PriorityQueue, Queue
 from time import sleep
 
 import requests
-from django.contrib.auth.models import User
+import schedule
 from django.core.mail import send_mail
 from django.utils.timezone import now
 from kiteconnect import KiteConnect
 
 from stock_project import settings
+from stocktradingapp import mockTraderLongScalp, mockTraderShortScalp, mockTraderHybridScalpReverse
 from stocktradingapp.models import Stock, ZerodhaAccount, Controls, LiveMonitor
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -104,6 +105,7 @@ def analyzeTicks(tick_queue):
                 current_price = instrument['last_price']
                 checkEntryTrigger(instrument_token, current_price)
                 checkStoploss(instrument_token, current_price, current_time)
+            schedule.run_pending()
         except Exception as e:
             pass
 
@@ -140,8 +142,7 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
-    test_user = User.objects.get_by_natural_key('testuser1')
-    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Short Scalp',
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=user_zerodha.hstock_user, user_id='Hybrid Scalp Straight',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
 def updateLiveMonitor(user_id):
@@ -478,6 +479,21 @@ def scheduleExit():
     entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
     exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
 
+    schedule.every().day.at('15:18').do(blockEntry)
+    schedule.every().day.at('15:18').do(mockTraderLongScalp.blockEntry)
+    schedule.every().day.at('15:18').do(mockTraderHybridScalpReverse.blockEntry)
+    schedule.every().day.at('15:18').do(mockTraderShortScalp.blockEntry)
+
+    schedule.every().day.at('15:19').do(exitAllPositions)
+    schedule.every().day.at('15:19').do(mockTraderLongScalp.exitAllPositions)
+    schedule.every().day.at('15:19').do(mockTraderHybridScalpReverse.exitAllPositions)
+    schedule.every().day.at('15:19').do(mockTraderShortScalp.exitAllPositions)
+
+    schedule.every().day.at('15:20').do(sendStatusEmail)
+    schedule.every().day.at('15:20').do(mockTraderLongScalp.sendStatusEmail)
+    schedule.every().day.at('15:20').do(mockTraderHybridScalpReverse.sendStatusEmail)
+    schedule.every().day.at('15:20').do(mockTraderShortScalp.sendStatusEmail)
+
 def blockEntry():
     global entry_allowed
     entry_allowed = False
@@ -490,10 +506,10 @@ def stripDecimalValues(value):
     return '{:.3f}'.format(value)
 
 def sendStatusEmail():
-    logging.debug('\n\nsend status email from short scalp called.\n\n')
+    logging.debug('\n\nsend status email from hybrid scalp straight called.\n\n')
     try:
         l_monitor = live_monitor['FX3876']
-        monitor_status = 'Status for Mock short scalp at time : ' + str(now()) \
+        monitor_status = 'Status for Mock hybrid scalp straight at time : ' + str(now()) \
                          + '\nProfit percent : ' + stripDecimalValues(l_monitor.net_profit_percent) \
                          + '\nProfit : ' + stripDecimalValues(l_monitor.profit) \
                          + '\nCommission : ' + stripDecimalValues(l_monitor.commission) \
@@ -510,7 +526,7 @@ def sendStatusEmail():
                          + '\n\nCopy paste:\n\n' \
                          + stripDecimalValues(l_monitor.net_profit_percent) + '\t' + stripDecimalValues(l_monitor.profit) \
                          + '\t' + stripDecimalValues(l_monitor.commission) + '\t' + stripDecimalValues(l_monitor.current_value)
-        x = send_mail(subject='Mock Short Scalp Status', message=monitor_status,
+        x = send_mail(subject='Mock Hybrid Scalp Straight Status', message=monitor_status,
                       from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
     except Exception as e:
         logging.debug('\n\n\n\nexception while sending status email:\n\n{}\n\n'.format(e))

@@ -138,7 +138,7 @@ def setupUserMaps(user_zerodha):
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
     test_user = User.objects.get_by_natural_key('testuser1')
-    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Short Scalp',
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Short Scalp Reverse',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
 def updateLiveMonitor(user_id):

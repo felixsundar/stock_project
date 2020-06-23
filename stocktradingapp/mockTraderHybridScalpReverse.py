@@ -140,8 +140,8 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
-    test_user = User.objects.get_by_natural_key('testuser1')
-    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Short Scalp',
+    test_user = User.objects.get_by_natural_key('testuser')
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Hybrid Scalp Reverse',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
 def updateLiveMonitor(user_id):
@@ -490,10 +490,10 @@ def stripDecimalValues(value):
     return '{:.3f}'.format(value)
 
 def sendStatusEmail():
-    logging.debug('\n\nsend status email from short scalp called.\n\n')
+    logging.debug('\n\nsend status email from hybrid scalp reverse called.\n\n')
     try:
         l_monitor = live_monitor['FX3876']
-        monitor_status = 'Status for Mock short scalp at time : ' + str(now()) \
+        monitor_status = 'Status for Mock hybrid scalp reverse at time : ' + str(now()) \
                          + '\nProfit percent : ' + stripDecimalValues(l_monitor.net_profit_percent) \
                          + '\nProfit : ' + stripDecimalValues(l_monitor.profit) \
                          + '\nCommission : ' + stripDecimalValues(l_monitor.commission) \
@@ -510,7 +510,7 @@ def sendStatusEmail():
                          + '\n\nCopy paste:\n\n' \
                          + stripDecimalValues(l_monitor.net_profit_percent) + '\t' + stripDecimalValues(l_monitor.profit) \
                          + '\t' + stripDecimalValues(l_monitor.commission) + '\t' + stripDecimalValues(l_monitor.current_value)
-        x = send_mail(subject='Mock Short Scalp Status', message=monitor_status,
+        x = send_mail(subject='Mock Hybrid Scalp Reverse Status', message=monitor_status,
                       from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
     except Exception as e:
         logging.debug('\n\n\n\nexception while sending status email:\n\n{}\n\n'.format(e))
