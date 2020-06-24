@@ -434,7 +434,7 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['entry_price'] = order_details['average_price']
     new_position['stoploss'] = order_details['average_price'] * (100.0 - POSITION_STOPLOSS_PERCENT) / 100.0
     new_position['entry_time'] = now()
-    new_position['exit_time'] = now() + timedelta(minutes=15)
+    new_position['exit_time'] = now() + timedelta(minutes=1)
     new_position['target_price'] = order_details['average_price'] * (100.0 + POSITION_TARGET_PERCENT) / 100.0
     new_position['exit_pending'] = False
     if second_leg_order_details:
