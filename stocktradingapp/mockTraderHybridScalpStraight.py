@@ -246,7 +246,7 @@ def checkStoploss(instrument_token, current_price, current_time):
                 position['exit_price'] = current_price
                 sendSignal(EXIT, instrument_token, position)
     except Exception as e:
-        logging.debug('exception in stoploss i hybrid reverse:\n\n{}'.format(e))
+        logging.debug('exception in stoploss in hybrid straight:\n\n{}'.format(e))
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition, side = None): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
