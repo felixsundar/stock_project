@@ -88,14 +88,17 @@ exited_trades = 0
 latest_exit_time = now()
 
 def analyzeTicks(tick_queue):
-    setupParameters()
-    if not setupUserAccounts():
-        return
-    updateTriggerRangesInDB()
-    setupTokenMaps()
-    startPostbackProcessingThread()
-    logging.debug('hybrid scalp straight mock trader thread started')
-    scheduleExit()
+    try:
+        setupParameters()
+        if not setupUserAccounts():
+            return
+        updateTriggerRangesInDB()
+        setupTokenMaps()
+        startPostbackProcessingThread()
+        logging.debug('hybrid scalp straight mock trader thread started')
+        scheduleExit()
+    except Exception as e:
+        logging.debug('Exception while initializing mock trader hybrid scalp straight:\n\n{}'.format(e))
     while True:
         try:
             tick = tick_queue.get(True)
