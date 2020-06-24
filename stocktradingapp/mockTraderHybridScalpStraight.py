@@ -110,7 +110,7 @@ def analyzeTicks(tick_queue):
                 checkStoploss(instrument_token, current_price, current_time)
             schedule.run_pending()
         except Exception as e:
-            pass
+            logging.debug('Exception while processing ticks in hybrid straight: \n\n{}'.format(e))
 
 def setupUserAccounts():
     user_zerodhas = ZerodhaAccount.objects.filter(is_active=True)

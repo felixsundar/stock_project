@@ -108,7 +108,7 @@ def analyzeTicks(tick_queue):
                 checkEntryTrigger(instrument_token, current_price)
                 checkStoploss(instrument_token, current_price, current_time)
         except Exception as e:
-            pass
+            logging.debug('Exception while processing ticks in hybrid reverse: \n\n{}'.format(e))
 
 def setupUserAccounts():
     user_zerodhas = ZerodhaAccount.objects.filter(is_active=True)
