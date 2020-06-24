@@ -237,12 +237,15 @@ def updateTriggerPrices(instrument_token, current_price):
     token_trigger_prices_lower[instrument_token] = current_price * (100.0 - ENTRY_TRIGGER_PERCENT) / 100.0
 
 def checkStoploss(instrument_token, current_price, current_time):
-    for position in current_positions[instrument_token]:
-        if current_time >= position['exit_time'] or exit_time_reached\
-                or (position['side'] == SHORT and current_price <= position['target_price'])\
-                or (position['side'] == LONG and current_price >= position['target_price']): # stoploss breached
-            position['exit_price'] = current_price
-            sendSignal(EXIT, instrument_token, position)
+    try:
+        for position in current_positions[instrument_token]:
+            if current_time >= position['exit_time'] or exit_time_reached \
+                    or (position['side'] == SHORT and current_price <= position['target_price']) \
+                    or (position['side'] == LONG and current_price >= position['target_price']):  # stoploss breached
+                position['exit_price'] = current_price
+                sendSignal(EXIT, instrument_token, position)
+    except Exception as e:
+        logging.debug('exception in stoploss i hybrid reverse:\n\n{}'.format(e))
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition, side = None): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
