@@ -240,8 +240,8 @@ def checkStoploss(instrument_token, current_price, current_time):
     try:
         for position in current_positions[instrument_token]:
             if current_time >= position['exit_time'] or exit_time_reached \
-                    or (position['side'] == SHORT and current_price <= position['target_price']) \
-                    or (position['side'] == LONG and current_price >= position['target_price']):  # stoploss breached
+                    or (position['side'] == LONG and current_price >= position['target_price']) \
+                    or (position['side'] == SHORT and current_price <= position['target_price']):  # stoploss breached
                 position['exit_price'] = current_price
                 sendSignal(EXIT, instrument_token, position)
     except Exception as e:
