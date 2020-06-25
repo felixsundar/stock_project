@@ -1,6 +1,7 @@
 import logging
 import queue
 import threading
+import traceback
 from datetime import timedelta
 from queue import PriorityQueue, Queue
 from time import sleep
@@ -245,12 +246,7 @@ def checkStoploss(instrument_token, current_price, current_time):
                 position['exit_price'] = current_price
                 sendSignal(EXIT, instrument_token, position)
         except Exception as e:
-            logging.debug('exception in stoploss in hybrid reverse:\n\n{}\n{}'.format(e, repr(e)))
-            logging.debug('\n\nvalues during exception stoploss: \n\n')
-            logging.debug('position:\n{}\n\ncurrent time: {}\nposition exit time: {}\nexit time reached: {}\n'
-                          'position side: {}\nlong: {}\ncurrent price: {}\nposition target price: {}\nshort: {}\n'
-                          .format(position, current_time, position['exit_time'], exit_time_reached, position['side'],
-                                  LONG, current_price, position['target_price'], SHORT))
+            logging.debug('reverse scalp except:\n\n{}'.format(traceback.format_exc()))
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition, side = None): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:

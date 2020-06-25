@@ -35,11 +35,11 @@ TRADING_SIDE = settings.TRADING_SIDE
 tick_overflow_mail_sent = False
 
 def runStockMonitor():
-    try:
-        x=send_mail(subject='Stock Project App Started', message='Stock Project App started successfully at ' + str(now()),
-                    from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
-    except Exception as e:
-        logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
+    # try:
+    #     x=send_mail(subject='Stock Project App Started', message='Stock Project App started successfully at ' + str(now()),
+    #                 from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
+    # except Exception as e:
+    #     logging.debug('\n\n\n\nemail sending exception:\n\n{}\n\n\n\n\n'.format(e))
     logging.debug('\n\n\n\nstock monitor thread started at time - {}\n\n\n\n'.format(now()))
     tick_queue1 = Queue(maxsize=3)
     tick_queue2 = Queue(maxsize=3)
@@ -135,11 +135,11 @@ def sendTickOverflowMail():
 
 def sendEmail():
     logging.debug('\n\nTick overflow occured at time - {}'.format(now()))
-    try:
-        x = send_mail(subject='Tick Overflow', message='Tick overflow occured at time - ' + str(now()),
-                      from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
-    except Exception as e:
-        logging.debug('\n\nemail sending exception while sending tick overflow email:\n\n{}\n\n'.format(e))
+    # try:
+    #     x = send_mail(subject='Tick Overflow', message='Tick overflow occured at time - ' + str(now()),
+    #                   from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
+    # except Exception as e:
+    #     logging.debug('\n\nemail sending exception while sending tick overflow email:\n\n{}\n\n'.format(e))
 
 def getInstrumentTokens():
     stocks = Stock.objects.filter(active=True)
