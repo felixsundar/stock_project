@@ -245,6 +245,9 @@ def checkStoploss(instrument_token, current_price, current_time):
                     or ((position['side'] == SHORT) and (current_price <= position['target_price'])):  # stoploss breached
                 position['exit_price'] = current_price
                 sendSignal(EXIT, instrument_token, position)
+                logging.debug('normal position: \n{}'.format(position))
+            else:
+                logging.debug('normal position: \n{}'.format(position))
         except Exception as e:
             logging.debug('exception in stoploss in hybrid reverse:\n\n{}\n{}'.format(e, repr(e)))
             logging.debug('\n\nvalues during exception stoploss: \n\n')
