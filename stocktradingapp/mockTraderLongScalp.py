@@ -225,7 +225,7 @@ def checkEntryTrigger(instrument_token, current_price):
 
 def checkStoploss(instrument_token, current_price, current_time):
     for position in current_positions[instrument_token]:
-        if current_time >= position['exit_time'] or current_price >= position['target_price'] or exit_time_reached: # stoploss breached
+        if current_price >= position['target_price'] or exit_time_reached: # stoploss breached
             position['exit_price'] = current_price
             sendSignal(EXIT, instrument_token, position)
 
@@ -434,7 +434,7 @@ def constructNewPosition(order_details, second_leg_order_details=None):
     new_position['entry_price'] = order_details['average_price']
     new_position['stoploss'] = order_details['average_price'] * (100.0 - POSITION_STOPLOSS_PERCENT) / 100.0
     new_position['entry_time'] = now()
-    new_position['exit_time'] = now() + timedelta(minutes=5)
+    new_position['exit_time'] = now() + timedelta(minutes=30)
     new_position['target_price'] = order_details['average_price'] * (100.0 + POSITION_TARGET_PERCENT) / 100.0
     new_position['exit_pending'] = False
     if second_leg_order_details:
