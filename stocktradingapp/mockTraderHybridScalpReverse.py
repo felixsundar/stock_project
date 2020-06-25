@@ -237,20 +237,20 @@ def updateTriggerPrices(instrument_token, current_price):
     token_trigger_prices_lower[instrument_token] = current_price * (100.0 - ENTRY_TRIGGER_PERCENT) / 100.0
 
 def checkStoploss(instrument_token, current_price, current_time):
-    try:
-        for position in current_positions[instrument_token]:
-            logging.debug('\n\nchecking stoploss: \n\n')
-            logging.debug('position:\n{}\n\ncurrent time: {}\nposition exit time: {}\nexit time reached: {}\n'
-                          'position side: {}\nlong: {}\ncurrent price: {}\nposition target price: {}\nshort: {}\n'
-                          .format(position, current_time, position['exit_time'], exit_time_reached, position['side'],
-                                  LONG, current_price, position['target_price'], SHORT))
+    for position in current_positions[instrument_token]:
+        try:
             if (current_time >= position['exit_time']) or exit_time_reached \
                     or ((position['side'] == LONG) and (current_price >= position['target_price'])) \
                     or ((position['side'] == SHORT) and (current_price <= position['target_price'])):  # stoploss breached
                 position['exit_price'] = current_price
                 sendSignal(EXIT, instrument_token, position)
-    except Exception as e:
-        logging.debug('exception in stoploss in hybrid reverse:\n\n{}'.format(e))
+        except Exception as e:
+            logging.debug('exception in stoploss in hybrid reverse:\n\n{}\n{}'.format(e, repr(e)))
+            logging.debug('\n\nvalues during exception stoploss: \n\n')
+            logging.debug('position:\n{}\n\ncurrent time: {}\nposition exit time: {}\nexit time reached: {}\n'
+                          'position side: {}\nlong: {}\ncurrent price: {}\nposition target price: {}\nshort: {}\n'
+                          .format(position, current_time, position['exit_time'], exit_time_reached, position['side'],
+                                  LONG, current_price, position['target_price'], SHORT))
 
 def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition, side = None): # 0 for exit, 1 for enter
     if enter_or_exit == ENTER:
