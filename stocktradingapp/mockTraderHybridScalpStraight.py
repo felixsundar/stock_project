@@ -259,20 +259,21 @@ def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition,
     if enter_or_exit == ENTER:
         for signal_queue in signal_queues.values():
             try:
-                signal_queue.put_nowait({'enter_or_exit':ENTER, 'side':side, 'instrument_token':instrument_token,
-                                         'current_price':currentPrice_or_currentPosition})
+                signal_queue.put_nowait((1, {'enter_or_exit':ENTER, 'side':side, 'instrument_token':instrument_token,
+                                         'current_price':currentPrice_or_currentPosition}))
             except queue.Full:
                 pass
     else:
         signal_queue = signal_queues[currentPrice_or_currentPosition['user_id']]
-        signal_queue.put({'enter_or_exit':EXIT, 'instrument_token':instrument_token, 'current_position':currentPrice_or_currentPosition},
+        signal_queue.put((0, {'enter_or_exit':EXIT, 'instrument_token':instrument_token, 'current_position':currentPrice_or_currentPosition}),
                          block=True)
 
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
     kite = user_kites[zerodha_user_id]
     while True:
-        signal = signal_queue.get(True)
+        signal_tuple = signal_queue.get(True)
+        signal = signal_tuple[1]
         try:
             if signal['enter_or_exit'] == ENTER and verifyEntryCondition(zerodha_user_id, signal['instrument_token']):
                 placeEntryOrder(zerodha_user_id, kite, signal)
