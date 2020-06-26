@@ -135,7 +135,7 @@ def setupUserMaps(user_zerodha):
     user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) * live_funds_available[user_zerodha.user_id] / 100.0
     user_target_stoploss[user_zerodha.user_id] = USER_TARGET_STOPLOSS * user_net_value[user_zerodha.user_id] / 100.0
     user_amount_at_risk[user_zerodha.user_id] = 0.0
-    signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
+    signal_queues[user_zerodha.user_id] = Queue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
     test_user = User.objects.get_by_natural_key('testuser2')
     live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Long Scalp Reverse',

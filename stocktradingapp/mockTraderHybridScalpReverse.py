@@ -142,7 +142,7 @@ def setupUserMaps(user_zerodha):
     user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) * live_funds_available[user_zerodha.user_id] / 100.0
     user_target_stoploss[user_zerodha.user_id] = USER_TARGET_STOPLOSS * user_net_value[user_zerodha.user_id] / 100.0
     user_amount_at_risk[user_zerodha.user_id] = 0.0
-    signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
+    signal_queues[user_zerodha.user_id] = Queue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
     test_user = User.objects.get_by_natural_key('testuser')
     live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Hybrid Scalp Reverse',
@@ -252,21 +252,20 @@ def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition,
     if enter_or_exit == ENTER:
         for signal_queue in signal_queues.values():
             try:
-                signal_queue.put_nowait((1, {'enter_or_exit':ENTER, 'side':side, 'instrument_token':instrument_token,
-                                         'current_price':currentPrice_or_currentPosition}))
+                signal_queue.put_nowait({'enter_or_exit':ENTER, 'side':side, 'instrument_token':instrument_token,
+                                         'current_price':currentPrice_or_currentPosition})
             except queue.Full:
                 pass
     else:
         signal_queue = signal_queues[currentPrice_or_currentPosition['user_id']]
-        signal_queue.put((0, {'enter_or_exit':EXIT, 'instrument_token':instrument_token, 'current_position':currentPrice_or_currentPosition}),
+        signal_queue.put({'enter_or_exit':EXIT, 'instrument_token':instrument_token, 'current_position':currentPrice_or_currentPosition},
                          block=True)
 
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
     kite = user_kites[zerodha_user_id]
     while True:
-        signal_tuple = signal_queue.get(True)
-        signal = signal_tuple[1]
+        signal = signal_queue.get(True)
         try:
             if signal['enter_or_exit'] == ENTER and verifyEntryCondition(zerodha_user_id, signal['instrument_token']):
                 placeEntryOrder(zerodha_user_id, kite, signal)
