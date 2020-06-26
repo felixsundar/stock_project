@@ -492,15 +492,15 @@ def scheduleExit():
     entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
     exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
 
-    schedule.every().day.at('15:18').do(blockEntry)
-    schedule.every().day.at('15:18').do(mockTraderLongScalp.blockEntry)
-    schedule.every().day.at('15:18').do(mockTraderHybridScalpReverse.blockEntry)
-    schedule.every().day.at('15:18').do(mockTraderShortScalp.blockEntry)
+    schedule.every().day.at(entry_time_end_str).do(blockEntry)
+    schedule.every().day.at(entry_time_end_str).do(mockTraderLongScalp.blockEntry)
+    schedule.every().day.at(entry_time_end_str).do(mockTraderHybridScalpReverse.blockEntry)
+    schedule.every().day.at(entry_time_end_str).do(mockTraderShortScalp.blockEntry)
 
-    schedule.every().day.at('15:19').do(exitAllPositions)
-    schedule.every().day.at('15:19').do(mockTraderLongScalp.exitAllPositions)
-    schedule.every().day.at('15:19').do(mockTraderHybridScalpReverse.exitAllPositions)
-    schedule.every().day.at('15:19').do(mockTraderShortScalp.exitAllPositions)
+    schedule.every().day.at(exit_time_str).do(exitAllPositions)
+    schedule.every().day.at(exit_time_str).do(mockTraderLongScalp.exitAllPositions)
+    schedule.every().day.at(exit_time_str).do(mockTraderHybridScalpReverse.exitAllPositions)
+    schedule.every().day.at(exit_time_str).do(mockTraderShortScalp.exitAllPositions)
 
     schedule.every().day.at('15:20').do(sendStatusEmail)
     schedule.every().day.at('15:20').do(mockTraderLongScalp.sendStatusEmail)
