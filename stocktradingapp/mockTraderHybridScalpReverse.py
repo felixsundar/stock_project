@@ -445,6 +445,9 @@ def updateUserStoploss(user_id):
     return user_net_value[user_id] - \
            max((user_target_value[user_id] - user_net_value[user_id]) / USER_STOPLOSS_TARGET_RATIO, user_target_stoploss[user_id])
 
+def updateUserStoplossStatic(user_id):
+    return user_net_value[user_id] - (user_net_value[user_id] * USER_STOPLOSS_PERCENT / 100.0)
+
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]
     orders = kite.orders()
