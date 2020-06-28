@@ -23,6 +23,8 @@ ENTER = 1
 EXIT = 0
 SHORT = 2
 LONG = 3
+HIGH_PRIORITY = 4
+LOW_PRIORITY = 5
 STATUS_COMPLETE = 'COMPLETE'
 STATUS_CANCELLED = 'CANCELLED'
 STATUS_REJECTED = 'REJECTED'
@@ -88,6 +90,14 @@ loss_percents = 0.0
 exited_trades = 0
 latest_exit_time = now()
 
+class SignalClass(object):
+    def __init__(self, priority, signal):
+        self.priority = priority
+        self.signal = signal
+
+    def __lt__(self, other):
+        return self.priority < other.priority
+
 def analyzeTicks(tick_queue):
     try:
         setupParameters()
@@ -144,7 +154,7 @@ def setupUserMaps(user_zerodha):
     user_stoploss[user_zerodha.user_id] = (100.0 - USER_STOPLOSS_PERCENT) * live_funds_available[user_zerodha.user_id] / 100.0
     user_target_stoploss[user_zerodha.user_id] = USER_TARGET_STOPLOSS * user_net_value[user_zerodha.user_id] / 100.0
     user_amount_at_risk[user_zerodha.user_id] = 0.0
-    signal_queues[user_zerodha.user_id] = Queue(maxsize=100)
+    signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
     live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=user_zerodha.hstock_user, user_id='Hybrid Scalp Straight',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
@@ -259,20 +269,23 @@ def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition,
     if enter_or_exit == ENTER:
         for signal_queue in signal_queues.values():
             try:
-                signal_queue.put_nowait({'enter_or_exit':ENTER, 'side':side, 'instrument_token':instrument_token,
-                                         'current_price':currentPrice_or_currentPosition})
+                signal = {'enter_or_exit': ENTER, 'side': side, 'instrument_token': instrument_token, 'current_price': currentPrice_or_currentPosition}
+                signal_object = SignalClass(LOW_PRIORITY, signal)
+                signal_queue.put_nowait(signal_object)
             except queue.Full:
                 pass
     else:
+        signal = {'enter_or_exit': EXIT, 'instrument_token': instrument_token, 'current_position': currentPrice_or_currentPosition}
+        signal_object = SignalClass(HIGH_PRIORITY, signal)
         signal_queue = signal_queues[currentPrice_or_currentPosition['user_id']]
-        signal_queue.put({'enter_or_exit':EXIT, 'instrument_token':instrument_token, 'current_position':currentPrice_or_currentPosition},
-                         block=True)
+        signal_queue.put(signal_object, block=True)
 
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
     kite = user_kites[zerodha_user_id]
     while True:
-        signal = signal_queue.get(True)
+        signal_object = signal_queue.get(True)
+        signal = signal_object.signal
         try:
             if signal['enter_or_exit'] == ENTER and verifyEntryCondition(zerodha_user_id, signal['instrument_token']):
                 placeEntryOrder(zerodha_user_id, kite, signal)
@@ -280,7 +293,7 @@ def tradeExecutor(zerodha_user_id):
                 placeExitOrder(kite, signal['instrument_token'], signal['current_position'])
         except Exception as e:
             logging.debug('Exception while placing order for user - {}\n'
-                          'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal[1], e))
+                          'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal['instrument_token'], e))
 
 def verifyEntryCondition(zerodha_user_id, instrument_token):
     for position in current_positions[instrument_token]:
@@ -296,7 +309,7 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
     quantity, variety = calculateNumberOfStocksToTrade(zerodha_user_id, signal['instrument_token'], signal['current_price'])
     if quantity == 0:
         return
-    if variety == CO_ORDER: #place co order
+    if variety == CO_ORDER and 1 == 2: #place co order
         trigger_price = calculateCOtriggerPrice(token_co_upper_trigger[signal[1]], signal[2])
         order_id = kite.place_order(variety=variety, exchange='NSE', tradingsymbol=token_symbols[signal[1]],
                                     transaction_type='SELL', quantity=quantity, product='MIS', order_type='MARKET',
@@ -427,11 +440,9 @@ def updateUserNetValue(user_id, position, exit_price):
     user_net_value[user_id] += (trade_profit - commission)
     user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
     global profit_trades, profit_exit_times, loss_trades, loss_percents, latest_exit_time, exited_trades
-    if now() >= position['exit_time']:
+    if exit_time_reached:
         loss_trades += 1
         loss_percents += price_difference * 100.0 / position['entry_price']
-    elif exit_time_reached:
-        exited_trades += 1
     else:
         profit_trades += 1
         profit_exit_times += (now() - position['entry_time'])
