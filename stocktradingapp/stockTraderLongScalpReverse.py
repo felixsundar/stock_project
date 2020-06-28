@@ -83,7 +83,7 @@ def analyzeTicks(tick_queue):
     updateTriggerRangesInDB()
     setupTokenMaps()
     startPostbackProcessingThread()
-    logging.debug('long stopprofit stock trader thread started')
+    logging.debug('long scalp stock trader thread started')
     scheduleExit()
     while True:
         try:
@@ -227,12 +227,14 @@ def sendSignal(enter_or_exit, instrument_token, currentPrice_or_currentPosition)
 def tradeExecutor(zerodha_user_id):
     signal_queue = signal_queues[zerodha_user_id]
     kite = user_kites[zerodha_user_id]
+    place_order = True
     while True:
         signal_object = signal_queue.get(True)
         signal = signal_object.signal
         try:
-            if signal['enter_or_exit'] == ENTER and verifyEntryCondition(zerodha_user_id, signal['instrument_token']):
+            if signal['enter_or_exit'] == ENTER and verifyEntryCondition(zerodha_user_id, signal['instrument_token']) and place_order:
                 placeEntryOrder(zerodha_user_id, kite, signal)
+                place_order = False
             elif signal['enter_or_exit'] == EXIT and not signal['current_position']['exit_pending']:
                 placeExitOrder(kite, signal['instrument_token'], signal['current_position'])
             elif signal['enter_or_exit'] == EXIT_NOW and signal['current_position']['exit_pending']:
@@ -255,6 +257,7 @@ def placeEntryOrder(zerodha_user_id, kite, signal):
     quantity= calculateNumberOfStocksToTrade(zerodha_user_id, signal['instrument_token'], signal['current_price'])
     if quantity == 0:
         return
+    quantity = 1
     order_id = kite.place_order(variety=ORDER_VARIETY, exchange='NSE',
                                 tradingsymbol=token_symbols[signal['instrument_token']],
                                 transaction_type='BUY', quantity=quantity, product='MIS',
