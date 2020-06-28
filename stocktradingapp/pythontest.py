@@ -17,6 +17,13 @@ logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 #              {'name': 'felix', 'age': 27, 'gender': 'male'},
 #              {'name': 'felix', 'age': 28, 'gender': 'male'}]
 
+target_price = (100.0 + 0.13) * 240.0 / 100.0
+limit_price = float('{:.1f}'.format(target_price))
+limit_price -= 0.1
+while limit_price < target_price:
+    limit_price += 0.05
+print(float('{:.2f}'.format(limit_price)))
+
 def runTests():
     logtime()
 #     schedule.every().day.at('16:19').do(scheduleExit)

@@ -168,7 +168,7 @@ ENTRY_TIME_END = (15, 18, 0)
 EXIT_TIME = (15, 19) # schedule takes only hour and minute. not seconds
 
 TRADING_SIDE = 1 # 1 for short, 2 for long, 3 for mock short, 4 for mock long, 5 for no trading
-ORDER_VARIETY = 'co'
+ORDER_VARIETY = 'regular'
 
 MOCK_TRADING_INITIAL_VALUE = 100000.0
 
