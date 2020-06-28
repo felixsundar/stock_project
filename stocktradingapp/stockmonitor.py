@@ -12,7 +12,8 @@ from kiteconnect import KiteTicker
 from stock_project import settings
 from stocktradingapp import stockTraderShortStoploss, stockTraderLongStoploss, mockTraderShortStoploss, \
     mockTraderLongStoploss, stockTraderShortStopprofit, stockTraderLongStopprofit, mockTraderShortStopprofit, \
-    mockTraderLongStopprofit, stockTraderShortFixed, stockTraderLongFixed, mockTraderShortFixed, mockTraderLongFixed
+    mockTraderLongStopprofit, stockTraderShortFixed, stockTraderLongFixed, mockTraderShortFixed, mockTraderLongFixed, \
+    stockTraderLongScalpReverse
 from stocktradingapp.models import Stock, Controls, LiveMonitor
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -77,8 +78,8 @@ def startStockTrader(tick_queue):
                                         name='stockTraderShortStopprofit_thread')
         traderThread.start()
     elif TRADING_SIDE == LONG_STOPPROFIT:
-        traderThread = threading.Thread(target=stockTraderLongStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderLongStopprofit_thread')
+        traderThread = threading.Thread(target=stockTraderLongScalpReverse.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='stockTraderLongScalpReverse_thread')
         traderThread.start()
     elif TRADING_SIDE == SHORT_STOPLOSS:
         traderThread = threading.Thread(target=stockTraderShortStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
