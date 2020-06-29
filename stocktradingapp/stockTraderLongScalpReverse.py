@@ -238,7 +238,7 @@ def tradeExecutor(zerodha_user_id):
             elif signal['enter_or_exit'] == EXIT and not signal['current_position']['exit_pending']:
                 placeExitOrder(kite, signal['instrument_token'], signal['current_position'])
             elif signal['enter_or_exit'] == EXIT_NOW and signal['current_position']['exit_pending']:
-                placeMarketExitOrder(kite, signal['position'])
+                placeMarketExitOrder(kite, signal['current_position'])
         except Exception as e:
             logging.debug('Exception while placing order for user - {}\n'
                           'Instrument Token - {}\n\n{}'.format(zerodha_user_id, signal['instrument_token'], e))
