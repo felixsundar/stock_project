@@ -255,8 +255,8 @@ def verifyEntryCondition(zerodha_user_id, instrument_token):
 
 def placeEntryOrder(zerodha_user_id, kite, signal):
     quantity= calculateNumberOfStocksToTrade(zerodha_user_id, signal['instrument_token'], signal['current_price'])
-    if quantity == 0:
-        return
+    # if quantity == 0:
+    #     return
     quantity = 1
     order_id = kite.place_order(variety=ORDER_VARIETY, exchange='NSE',
                                 tradingsymbol=token_symbols[signal['instrument_token']],
