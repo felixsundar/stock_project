@@ -406,7 +406,7 @@ def updateUserNetValue(user_id, position, exit_price):
     commission = calculateCommission(exit_price * position['number_of_stocks'], position['entry_price'] * position['number_of_stocks'])
     user_commission[user_id] += commission
     user_net_value[user_id] += (trade_profit - commission)
-    user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoplossStatic(user_id))
+    user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
     global profit_trades, profit_exit_times, loss_trades, loss_percents, latest_exit_time, exited_trades
     if exit_time_reached:
         loss_trades += 1
@@ -430,9 +430,6 @@ def calculateCommission(buy_value, sell_value):
 def updateUserStoploss(user_id):
     return user_net_value[user_id] - \
            max((user_target_value[user_id] - user_net_value[user_id]) / USER_STOPLOSS_TARGET_RATIO, user_target_stoploss[user_id])
-
-def updateUserStoplossStatic(user_id):
-    return user_net_value[user_id] - (user_net_value[user_id] * USER_STOPLOSS_PERCENT / 100.0)
 
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]

@@ -31,7 +31,8 @@ CO_ORDER = 'co'
 REGULAR_ORDER = 'regular'
 
 # PARAMETERS
-ENTRY_TRIGGER_PERCENT = settings.ENTRY_TRIGGER_PERCENT
+ENTRY_TRIGGER_TIMES_UPPER = (100.0 + settings.ENTRY_TRIGGER_PERCENT) / 100.0
+ENTRY_TRIGGER_TIMES_LOWER = (100.0 - settings.ENTRY_TRIGGER_PERCENT) / 100.0
 
 MAX_RISK_PERCENT_PER_TRADE = settings.MAX_RISK_PERCENT_PER_TRADE
 MAX_INVESTMENT_PER_POSITION = settings.MAX_INVESTMENT_PER_POSITION
@@ -47,7 +48,6 @@ USER_TARGET_STOPLOSS = settings.USER_TARGET_STOPLOSS
 USER_TARGET_PERCENT = settings.USER_TARGET_PERCENT
 USER_STOPLOSS_TARGET_RATIO = USER_TARGET_PERCENT / USER_STOPLOSS_PERCENT
 
-COMMISSION_PERCENT = settings.COMMISSION_PERCENT
 ENTRY_TIME_START = now().time().replace(hour=settings.ENTRY_TIME_START[0], minute=settings.ENTRY_TIME_START[1],
                                         second=settings.ENTRY_TIME_START[2])
 
@@ -199,14 +199,16 @@ def setupTokenMaps():
         token_co_upper_trigger[stock.instrument_token] = stock.co_trigger_percent_upper
 
 def setupParameters():
-    global ENTRY_TRIGGER_PERCENT, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, MIN_INVESTMENT_PER_POSITION, COMMISSION_PERCENT, \
+    global ENTRY_TRIGGER_TIMES_UPPER, ENTRY_TRIGGER_TIMES_LOWER, MAX_RISK_PERCENT_PER_TRADE, MAX_INVESTMENT_PER_POSITION, \
         POSITION_STOPLOSS_PERCENT, POSITION_TARGET_STOPLOSS, POSITION_TARGET_PERCENT, USER_STOPLOSS_PERCENT, MOCK_TRADING_INITIAL_VALUE, \
-        USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, POSITION_STOPLOSS_TARGET_RATIO
+        USER_TARGET_STOPLOSS, USER_STOPLOSS_TARGET_RATIO, USER_TARGET_PERCENT, ENTRY_TIME_START, POSITION_STOPLOSS_TARGET_RATIO, \
+        MIN_INVESTMENT_PER_POSITION
 
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
 
-        ENTRY_TRIGGER_PERCENT = controls.entry_trigger_percent
+        ENTRY_TRIGGER_TIMES_UPPER = (100.0 + controls.entry_trigger_percent) / 100.0
+        ENTRY_TRIGGER_TIMES_LOWER = (100.0 - controls.entry_trigger_percent) / 100.0
 
         MAX_RISK_PERCENT_PER_TRADE = controls.max_risk_percent_per_trade
         MAX_INVESTMENT_PER_POSITION = controls.max_investment_per_position
@@ -240,12 +242,17 @@ def checkEntryTrigger(instrument_token, current_price):
         elif current_price <= token_trigger_prices_lower[instrument_token]: # lower trigger breached
             updateTriggerPrices(instrument_token, current_price)
             sendSignal(ENTER, instrument_token, current_price, LONG)
+        else:
+            token_trigger_prices_upper[instrument_token] = min(token_trigger_prices_upper[instrument_token],
+                                                               current_price * ENTRY_TRIGGER_TIMES_UPPER)
+            token_trigger_prices_lower[instrument_token] = max(token_trigger_prices_lower[instrument_token],
+                                                               current_price * ENTRY_TRIGGER_TIMES_LOWER)
     except Exception as e: # update entry trigger
         updateTriggerPrices(instrument_token, current_price)
 
 def updateTriggerPrices(instrument_token, current_price):
-    token_trigger_prices_upper[instrument_token] = current_price * (100.0 + ENTRY_TRIGGER_PERCENT) / 100.0
-    token_trigger_prices_lower[instrument_token] = current_price * (100.0 - ENTRY_TRIGGER_PERCENT) / 100.0
+    token_trigger_prices_upper[instrument_token] = current_price * ENTRY_TRIGGER_TIMES_UPPER
+    token_trigger_prices_lower[instrument_token] = current_price * ENTRY_TRIGGER_TIMES_LOWER
 
 def checkStoploss(instrument_token, current_price, current_time):
     for position in current_positions[instrument_token]:
@@ -431,7 +438,7 @@ def updateUserNetValue(user_id, position, exit_price):
     live_funds_available[user_id] += trade_profit
     user_commission[user_id] += commission
     user_net_value[user_id] += (trade_profit - commission)
-    user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoplossStatic(user_id))
+    user_stoploss[user_id] = max(user_stoploss[user_id], updateUserStoploss(user_id))
     global profit_trades, profit_exit_times, loss_trades, loss_percents, latest_exit_time, exited_trades
     if exit_time_reached:
         loss_trades += 1
@@ -455,9 +462,6 @@ def calculateCommission(buy_value, sell_value):
 def updateUserStoploss(user_id):
     return user_net_value[user_id] - \
            max((user_target_value[user_id] - user_net_value[user_id]) / USER_STOPLOSS_TARGET_RATIO, user_target_stoploss[user_id])
-
-def updateUserStoplossStatic(user_id):
-    return user_net_value[user_id] - (user_net_value[user_id] * USER_STOPLOSS_PERCENT / 100.0)
 
 def getSecondLegOrder(order_details):
     kite = user_kites[order_details['user_id']]
