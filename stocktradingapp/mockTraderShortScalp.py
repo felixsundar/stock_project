@@ -512,7 +512,7 @@ def sendStatusEmail():
                          + '\nStoploss : ' + str(l_monitor.stoploss) \
                          + '\nValue at risk : ' + str(l_monitor.value_at_risk) \
                          + '\n\nCopy paste:\n\n' \
-                         + stripDecimalValues(l_monitor.net_profit_percent) + '\t' + stripDecimalValues(l_monitor.profit) \
+                         + stripDecimalValues(l_monitor.net_profit_percent) + '\t\t' + stripDecimalValues(l_monitor.profit) \
                          + '\t' + stripDecimalValues(l_monitor.commission) + '\t' + stripDecimalValues(l_monitor.current_value) \
                          + '\n\n' + loss_details_str
         x = send_mail(subject='Mock Short Scalp Status', message=monitor_status,
