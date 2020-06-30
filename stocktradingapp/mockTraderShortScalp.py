@@ -491,7 +491,6 @@ def sendStatusEmail():
         loss_details_str = '\n\n\nLoss trade details:\n\n\n'
         for loss_trade in loss_trade_details:
             temp_str = '\n\n\n\ntrading symbol : ' + str(loss_trade['trading_symbol']) \
-                       + '\nside : ' + str(loss_trade['side']) \
                        + '\nentry_time : ' + str(loss_trade['entry_time']) \
                        + '\nentry_price : ' + str(loss_trade['entry_price']) \
                        + '\nexit_price : ' + str(loss_trade['exit_price']) \
