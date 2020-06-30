@@ -11,16 +11,17 @@ from django.utils.timezone import now
 from stock_project import settings
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
-a={}
-a[1] = 11
-a[2] = 12
-try:
-    if 34 < a[3]:
-        print('yes')
-except Exception as e:
-    print(repr(e))
+# a={}
+# a[1] = 11
+# a[2] = 12
+# try:
+#     if 34 < a[3]:
+#         print('yes')
+# except Exception as e:
+#     print(repr(e))
 
-
+a = {'adf': 787.7, 'efi': 9798}
+print(a)
 # def testtime():
 #     ans = timedelta(seconds=0)
 #     current_time = now()

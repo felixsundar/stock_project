@@ -87,6 +87,7 @@ profit_exit_times = timedelta(seconds=0)
 loss_trades = 0
 loss_percents = 0.0
 exited_trades = 0
+loss_trade_details = []
 latest_exit_time = now()
 
 class SignalClass(object):
@@ -420,14 +421,14 @@ def updateExitOrderComplete(order_details):
     current_positions_for_instrument = current_positions[order_details['instrument_token']]
     for position in current_positions_for_instrument:
         if position['user_id'] == order_details['user_id']:
-            updateUserNetValue(position['user_id'], position, order_details['average_price'])
+            updateUserNetValue(position['user_id'], position, order_details['average_price'], order_details['instrument_token'])
             updateAmountAtRisk(EXIT, position['user_id'], position['entry_price'], position['number_of_stocks'])
             current_positions_for_instrument.remove(position)
             live_funds_available[order_details['user_id']] += (position['entry_price'] * position['number_of_stocks']
                                                               / token_mis_margins[order_details['instrument_token']])
             return
 
-def updateUserNetValue(user_id, position, exit_price):
+def updateUserNetValue(user_id, position, exit_price, instrument_token):
     if position['side'] == SHORT:
         price_difference = position['entry_price'] - exit_price
         commission = calculateCommission(exit_price * position['number_of_stocks'], position['entry_price'] * position['number_of_stocks'])
@@ -442,11 +443,19 @@ def updateUserNetValue(user_id, position, exit_price):
     global profit_trades, profit_exit_times, loss_trades, loss_percents, latest_exit_time, exited_trades
     if exit_time_reached:
         loss_trades += 1
-        loss_percents += price_difference * 100.0 / position['entry_price']
+        loss_percent = price_difference * 100.0 / position['entry_price']
+        loss_percents += loss_percent
+        addLossDetails(position, instrument_token, exit_price, loss_percent)
     else:
         profit_trades += 1
         profit_exit_times += (now() - position['entry_time'])
     latest_exit_time = now()
+
+def addLossDetails(position, instrument_token, exit_price, loss_percent):
+    loss_trade_details.append({'trading_symbol': token_symbols[instrument_token], 'entry_time': position['entry_time'],
+                               'side': position['side'],
+                               'entry_price': position['entry_price'], 'exit_price': exit_price,
+                               'loss_percent': loss_percent})
 
 def calculateCommission(buy_value, sell_value):
     trade_value = buy_value + sell_value
@@ -517,6 +526,15 @@ def stripDecimalValues(value):
 def sendStatusEmail():
     logging.debug('\n\nsend status email from hybrid scalp reverse called.\n\n')
     try:
+        loss_details_str = '\n\n\nLoss trade details:\n\n\n'
+        for loss_trade in loss_trade_details:
+            temp_str = '\n\n\n\ntrading symbol : ' + str(loss_trade['trading_symbol']) \
+                       + '\nside : ' + str(loss_trade['side']) \
+                       + '\nentry_time : ' + str(loss_trade['entry_time']) \
+                       + '\nentry_price : ' + str(loss_trade['entry_price']) \
+                       + '\nexit_price : ' + str(loss_trade['exit_price']) \
+                       + '\nloss percent : ' + str(loss_trade['loss_percent'])
+            loss_details_str = loss_details_str + temp_str
         l_monitor = live_monitor['FX3876']
         monitor_status = 'Status for Mock hybrid scalp reverse at time : ' + str(now()) \
                          + '\nProfit percent : ' + stripDecimalValues(l_monitor.net_profit_percent) \
@@ -534,7 +552,8 @@ def sendStatusEmail():
                          + '\nValue at risk : ' + str(l_monitor.value_at_risk) \
                          + '\n\nCopy paste:\n\n' \
                          + stripDecimalValues(l_monitor.net_profit_percent) + '\t' + stripDecimalValues(l_monitor.profit) \
-                         + '\t' + stripDecimalValues(l_monitor.commission) + '\t' + stripDecimalValues(l_monitor.current_value)
+                         + '\t' + stripDecimalValues(l_monitor.commission) + '\t' + stripDecimalValues(l_monitor.current_value) \
+                         + '\n\n' + loss_details_str
         x = send_mail(subject='Mock Hybrid Scalp Reverse Status', message=monitor_status,
                       from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=['felixsundar07@gmail.com'], fail_silently=False)
     except Exception as e:
