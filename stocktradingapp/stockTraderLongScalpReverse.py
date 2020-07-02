@@ -374,8 +374,10 @@ def scheduleExit():
         entry_time_end = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
                                               second=settings.ENTRY_TIME_END[2])
         exit_time =  now().time().replace(hour=settings.EXIT_TIME[0], minute=settings.EXIT_TIME[1])
-    entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
-    exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
+    ete_minute = str(entry_time_end.minute) if entry_time_end.minute != 0 else '00'
+    et_minute = str(exit_time.minute) if exit_time.minute != 0 else '00'
+    entry_time_end_str = str(entry_time_end.hour) + ':' + ete_minute
+    exit_time_str = str(exit_time.hour) + ':' + et_minute
     schedule.every().day.at(entry_time_end_str).do(blockEntry)
     schedule.every().day.at(exit_time_str).do(exitAllPositions)
 
