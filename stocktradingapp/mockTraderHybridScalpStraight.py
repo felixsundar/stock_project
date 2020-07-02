@@ -517,6 +517,9 @@ def scheduleExit():
     entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
     exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
 
+    logging.debug('et str- {}'.format(entry_time_end_str))
+    logging.debug('ex str - {}'.format(exit_time_str))
+
     schedule.every().day.at(entry_time_end_str).do(blockEntry)
     schedule.every().day.at(entry_time_end_str).do(mockTraderLongScalp.blockEntry)
     schedule.every().day.at(entry_time_end_str).do(mockTraderHybridScalpReverse.blockEntry)
