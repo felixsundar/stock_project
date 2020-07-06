@@ -482,17 +482,17 @@ def scheduleExit():
     # schedule.every().day.at('13:38').do(mockTraderShortScalp.sendStatusEmail)
 
     schedule.every().day.at(entry_time_end_str).do(blockEntry)
-    schedule.every().day.at(entry_time_end_str).do(mockTraderLongScalp.blockEntry)
+    schedule.every().day.at(entry_time_end_str).do(mockTraderLongFixed.blockEntry)
     # schedule.every().day.at('15:18').do(mockTraderLongFixed.blockEntry)
     # schedule.every().day.at('15:18').do(mockTraderShortScalp.blockEntry)
     #
     schedule.every().day.at(exit_time_str).do(exitAllPositions)
-    schedule.every().day.at(exit_time_str).do(mockTraderLongScalp.exitAllPositions)
+    schedule.every().day.at(exit_time_str).do(mockTraderLongFixed.exitAllPositions)
     # schedule.every().day.at('15:19').do(mockTraderLongFixed.exitAllPositions)
     # schedule.every().day.at('15:19').do(mockTraderShortScalp.exitAllPositions)
     #
     schedule.every().day.at('15:20').do(sendStatusEmail)
-    schedule.every().day.at('15:20').do(mockTraderLongScalp.sendStatusEmail)
+    schedule.every().day.at('15:20').do(mockTraderLongFixed.sendStatusEmail)
     # schedule.every().day.at('15:20').do(mockTraderLongFixed.sendStatusEmail)
     # schedule.every().day.at('15:20').do(mockTraderShortScalp.sendStatusEmail)
 
