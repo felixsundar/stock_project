@@ -6,6 +6,7 @@ from queue import PriorityQueue, Queue
 from time import sleep
 
 import requests
+import schedule
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.utils.timezone import now
@@ -101,6 +102,7 @@ def analyzeTicks(tick_queue):
                 current_price = instrument['last_price']
                 checkEntryTrigger(instrument_token, current_price)
                 checkStoploss(instrument_token, current_price)
+            schedule.run_pending()
         except Exception as e:
             pass
 
@@ -137,8 +139,7 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
-    test_user = User.objects.get_by_natural_key('testuser2')
-    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Short Fixed',
+    live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=user_zerodha.hstock_user, user_id='Short Fixed',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 
 def updateLiveMonitor(user_id):
@@ -450,8 +451,10 @@ def scheduleExit():
         entry_time_end = now().time().replace(hour=settings.ENTRY_TIME_END[0], minute=settings.ENTRY_TIME_END[1],
                                               second=settings.ENTRY_TIME_END[2])
         exit_time =  now().time().replace(hour=settings.EXIT_TIME[0], minute=settings.EXIT_TIME[1])
-    entry_time_end_str = str(entry_time_end.hour) + ':' + str(entry_time_end.minute)
-    exit_time_str = str(exit_time.hour) + ':' + str(exit_time.minute)
+    ete_minute = str(entry_time_end.minute) if entry_time_end.minute != 0 else '00'
+    et_minute = str(exit_time.minute) if exit_time.minute != 0 else '00'
+    entry_time_end_str = str(entry_time_end.hour) + ':' + ete_minute
+    exit_time_str = str(exit_time.hour) + ':' + et_minute
 
     # schedule.every().day.at('10:18').do(sendStatusEmail)
     # schedule.every().day.at('10:18').do(mockTraderLongScalp.sendStatusEmail)
@@ -478,18 +481,18 @@ def scheduleExit():
     # schedule.every().day.at('13:38').do(mockTraderLongFixed.sendStatusEmail)
     # schedule.every().day.at('13:38').do(mockTraderShortScalp.sendStatusEmail)
 
-    # schedule.every().day.at('15:18').do(blockEntry)
-    # schedule.every().day.at('15:18').do(mockTraderLongScalp.blockEntry)
+    schedule.every().day.at(entry_time_end_str).do(blockEntry)
+    schedule.every().day.at(entry_time_end_str).do(mockTraderLongScalp.blockEntry)
     # schedule.every().day.at('15:18').do(mockTraderLongFixed.blockEntry)
     # schedule.every().day.at('15:18').do(mockTraderShortScalp.blockEntry)
     #
-    # schedule.every().day.at('15:19').do(exitAllPositions)
-    # schedule.every().day.at('15:19').do(mockTraderLongScalp.exitAllPositions)
+    schedule.every().day.at(exit_time_str).do(exitAllPositions)
+    schedule.every().day.at(exit_time_str).do(mockTraderLongScalp.exitAllPositions)
     # schedule.every().day.at('15:19').do(mockTraderLongFixed.exitAllPositions)
     # schedule.every().day.at('15:19').do(mockTraderShortScalp.exitAllPositions)
     #
-    # schedule.every().day.at('15:20').do(sendStatusEmail)
-    # schedule.every().day.at('15:20').do(mockTraderLongScalp.sendStatusEmail)
+    schedule.every().day.at('15:20').do(sendStatusEmail)
+    schedule.every().day.at('15:20').do(mockTraderLongScalp.sendStatusEmail)
     # schedule.every().day.at('15:20').do(mockTraderLongFixed.sendStatusEmail)
     # schedule.every().day.at('15:20').do(mockTraderShortScalp.sendStatusEmail)
 
