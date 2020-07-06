@@ -136,7 +136,7 @@ def setupUserMaps(user_zerodha):
     user_amount_at_risk[user_zerodha.user_id] = 0.0
     signal_queues[user_zerodha.user_id] = PriorityQueue(maxsize=100)
     pending_orders[user_zerodha.user_id] = []
-    test_user = User.objects.get_by_natural_key('testuser')
+    test_user = User.objects.get_by_natural_key('testuser1')
     live_monitor[user_zerodha.user_id] = LiveMonitor(hstock_user=test_user, user_id='Long Fixed',
                                                      initial_value=user_initial_value[user_zerodha.user_id])
 

@@ -75,11 +75,11 @@ def startStockTrader(tick_queue1, tick_queue2, tick_queue3, tick_queue4):
     traderThread1 = threading.Thread(target=mockTraderHybridScalpStraight.analyzeTicks, args=(tick_queue3,), daemon=True,
                                      name='mockTraderHybridScalpStraight_thread')
     traderThread1.start()
-    traderThread2 = threading.Thread(target=mockTraderLongScalp.analyzeTicks, args=(tick_queue2,), daemon=True,
-                                     name='mockTraderLongScalp_thread')
+    traderThread2 = threading.Thread(target=mockTraderLongFixed.analyzeTicks, args=(tick_queue2,), daemon=True,
+                                     name='mockTraderLongFixed_thread')
     traderThread2.start()
-    traderThread3 = threading.Thread(target=mockTraderShortScalp.analyzeTicks, args=(tick_queue1,), daemon=True,
-                                     name='mockTraderShortScalp_thread')
+    traderThread3 = threading.Thread(target=mockTraderShortFixed.analyzeTicks, args=(tick_queue1,), daemon=True,
+                                     name='mockTraderShortFixed_thread')
     traderThread3.start()
     return True
 
