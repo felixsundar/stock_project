@@ -311,11 +311,11 @@ def calculateNumberOfStocksToTrade(zerodha_user_id, instrument_token, current_pr
         margin = token_co_margins[instrument_token]
     else:
         margin = token_mis_margins[instrument_token]
-    riskable_amount = min(MAX_RISK_PERCENT_PER_TRADE * user_net_value[zerodha_user_id] / 100.0,
+    riskable_amount = min(0.5 * user_net_value[zerodha_user_id] / 100.0,
                           user_net_value[zerodha_user_id] - user_amount_at_risk[zerodha_user_id] - user_stoploss[zerodha_user_id])
     if riskable_amount <= 0:
         return (0, order_variety_local)
-    investment_for_riskable_amount = riskable_amount * 100.0 / POSITION_STOPLOSS_PERCENT # riskable_amount = 0.5% then ? = 100%...
+    investment_for_riskable_amount = riskable_amount * 100.0 / 0.5 # riskable_amount = 0.5% then ? = 100%...
     amount_to_invest = min(investment_for_riskable_amount, live_funds_available[zerodha_user_id] * margin, MAX_INVESTMENT_PER_POSITION)
     quantity = amount_to_invest // (current_price + 1) # 1 added to match the anticipated price increase in the time gap
     quantity = quantity if (quantity * current_price) >= MIN_INVESTMENT_PER_POSITION else 0
@@ -369,9 +369,9 @@ def updateEntryOrderComplete(order_details):
 
 def updateAmountAtRisk(enter_or_exit, zerodha_user_id, price, number_of_stocks):
     if enter_or_exit == ENTER:
-        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] + (price * number_of_stocks * POSITION_STOPLOSS_PERCENT / 100.0)
+        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] + (price * number_of_stocks * 0.5 / 100.0)
     else:
-        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] - (price * number_of_stocks * POSITION_STOPLOSS_PERCENT / 100.0)
+        user_amount_at_risk[zerodha_user_id] = user_amount_at_risk[zerodha_user_id] - (price * number_of_stocks * 0.5 / 100.0)
 
 def updateExitOrderComplete(order_details):
     current_positions_for_instrument = current_positions[order_details['instrument_token']]
