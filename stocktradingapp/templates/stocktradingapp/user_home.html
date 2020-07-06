@@ -9,7 +9,7 @@ email : {{user_zerodha.email}}<br>
 {% if access_token_valid %}
 access token : <b>valid</b>
 {% else %}
-access_token : <b>Invalid</b>
+access token : <b>Invalid</b>
 {% endif %}<br>
 <a href="{% url 'authZerodha' %}">Renew Token</a>
 {% else %}

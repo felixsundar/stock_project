@@ -14,7 +14,7 @@ from kiteconnect import KiteConnect
 
 from stock_project import settings
 from stocktradingapp import stockTraderShortStoploss, stockmonitor, stockTraderLongStoploss, stockTraderShortStopprofit, \
-    stockTraderLongStopprofit
+    stockTraderLongStopprofit, stockTraderShortFixed, stockTraderLongFixed, stockTraderLongScalpReverse
 from stocktradingapp.models import ZerodhaAccount
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
@@ -75,11 +75,15 @@ def zerodhaPostback(request):
         if stockmonitor.TRADING_SIDE == stockmonitor.SHORT_STOPPROFIT:
             stockTraderShortStopprofit.postback_queue.put(item=order_details, block=True)
         elif stockmonitor.TRADING_SIDE == stockmonitor.LONG_STOPPROFIT:
-            stockTraderLongStopprofit.postback_queue.put(item=order_details, block=True)
+            stockTraderLongScalpReverse.postback_queue.put(item=order_details, block=True)
         elif stockmonitor.TRADING_SIDE == stockmonitor.SHORT_STOPLOSS:
             stockTraderShortStoploss.postback_queue.put(item=order_details, block=True)
         elif stockmonitor.TRADING_SIDE == stockmonitor.LONG_STOPLOSS:
             stockTraderLongStoploss.postback_queue.put(item=order_details, block=True)
+        elif stockmonitor.TRADING_SIDE == stockmonitor.SHORT_FIXED:
+            stockTraderShortFixed.postback_queue.put(item=order_details, block=True)
+        elif stockmonitor.TRADING_SIDE == stockmonitor.LONG_FIXED:
+            stockTraderLongFixed.postback_queue.put(item=order_details, block=True)
         else:
             return HttpResponse('algo trading not running now.')
     return HttpResponse('order details received.')

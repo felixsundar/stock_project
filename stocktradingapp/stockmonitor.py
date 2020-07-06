@@ -12,8 +12,9 @@ from kiteconnect import KiteTicker
 from stock_project import settings
 from stocktradingapp import stockTraderShortStoploss, stockTraderLongStoploss, mockTraderShortStoploss, \
     mockTraderLongStoploss, stockTraderShortStopprofit, stockTraderLongStopprofit, mockTraderShortStopprofit, \
-    mockTraderLongStopprofit, stockTraderShortFixed, stockTraderLongFixed, mockTraderShortFixed, mockTraderLongFixed
-from stocktradingapp.models import Stock, Controls
+    mockTraderLongStopprofit, stockTraderShortFixed, stockTraderLongFixed, mockTraderShortFixed, mockTraderLongFixed, \
+    stockTraderLongScalpReverse
+from stocktradingapp.models import Stock, Controls, LiveMonitor
 
 logging.basicConfig(filename=settings.LOG_FILE_PATH, level=logging.DEBUG)
 
@@ -51,11 +52,20 @@ def createWebSocketTicker():
     try:
         user = User.objects.get_by_natural_key(settings.PRIMARY_USERNAME)
         user_zerodha = user.user_zerodha.first()
+        if not validateAccessToken(user_zerodha.access_token_time):
+            return None
         return KiteTicker(user_zerodha.api_key, user_zerodha.access_token)
     except Exception as e:
         return None
 
+def validateAccessToken(access_token_time):
+    expiry_time = now().replace(hour=8, minute=30, second=0, microsecond=0)
+    if now() > expiry_time and access_token_time < expiry_time:
+        return False
+    return True
+
 def startStockTrader(tick_queue):
+    LiveMonitor.objects.all().delete()
     global TRADING_SIDE
     try:
         controls = Controls.objects.get(control_id=settings.CONTROLS_RECORD_ID)
@@ -68,8 +78,8 @@ def startStockTrader(tick_queue):
                                         name='stockTraderShortStopprofit_thread')
         traderThread.start()
     elif TRADING_SIDE == LONG_STOPPROFIT:
-        traderThread = threading.Thread(target=stockTraderLongStopprofit.analyzeTicks, args=(tick_queue,), daemon=True,
-                                        name='stockTraderLongStopprofit_thread')
+        traderThread = threading.Thread(target=stockTraderLongScalpReverse.analyzeTicks, args=(tick_queue,), daemon=True,
+                                        name='stockTraderLongScalpReverse_thread')
         traderThread.start()
     elif TRADING_SIDE == SHORT_STOPLOSS:
         traderThread = threading.Thread(target=stockTraderShortStoploss.analyzeTicks, args=(tick_queue,), daemon=True,
@@ -142,7 +152,7 @@ def startWebSocketTicker(kws, tick_queue):
         # On connection close stop the main loop
         # Reconnection will not happen after executing `ws.stop()`
         current_time = now()
-        if current_time > now().time().replace(hour=15, minute=29, second=30):
+        if current_time > now().replace(hour=15, minute=29, second=30):
             ws.stop()
 
     # Assign the callbacks.
